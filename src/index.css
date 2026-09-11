@@ -57,3 +57,38 @@ body {
 .animate-fade-in-overlay {
   animation: fadeInOverlay 0.2s ease-out;
 }
+
+/* Leaflet фиксы */
+.leaflet-container {
+  z-index: 0 !important;
+  border-radius: 1rem;
+  font-family: inherit;
+}
+
+.dark .leaflet-tile {
+  filter: brightness(0.85) invert(1) hue-rotate(180deg) contrast(0.9);
+}
+
+.leaflet-control-attribution {
+  font-size: 10px !important;
+  opacity: 0.7;
+}
+
+/* Кастомный маркер */
+.custom-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+.custom-marker-inner {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  border: 3px solid white;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+  background: #6366f1;
+}

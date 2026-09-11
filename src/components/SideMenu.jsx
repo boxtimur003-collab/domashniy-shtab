@@ -4,7 +4,6 @@ import { useAuth } from "../context/AuthContext";
 export default function SideMenu({ open, onClose, tab, setTab, family }) {
   const { profile, logout } = useAuth();
 
-  // Закрытие по Escape
   useEffect(() => {
     if (!open) return;
     const onKey = (e) => {
@@ -14,7 +13,6 @@ export default function SideMenu({ open, onClose, tab, setTab, family }) {
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  // Блокировка скролла body при открытом меню
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
     return () => {
@@ -25,12 +23,12 @@ export default function SideMenu({ open, onClose, tab, setTab, family }) {
   const menuItems = [
     { id: "home", label: "Статусы", icon: "🏠", desc: "Кто где сейчас" },
     { id: "chats", label: "Чаты", icon: "💬", desc: "Семья и личные" },
+    { id: "map", label: "Карта", icon: "🗺️", desc: "Где члены семьи" },
     { id: "family", label: "Семья", icon: "👨‍👩‍👧", desc: "Участники и заявки" },
   ];
 
   return (
     <>
-      {/* Оверлей */}
       {open && (
         <div
           className="fixed inset-0 bg-black/50 z-50 animate-fade-in-overlay"
@@ -38,13 +36,11 @@ export default function SideMenu({ open, onClose, tab, setTab, family }) {
         />
       )}
 
-      {/* Меню */}
       <aside
         className={`fixed top-0 left-0 bottom-0 w-72 max-w-[85vw] bg-white dark:bg-slate-800 z-50 shadow-2xl flex flex-col transition-transform duration-300 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        {/* Шапка с профилем */}
         <div className="p-5 border-b dark:border-slate-700 bg-gradient-to-br from-indigo-500 to-purple-600">
           <div className="flex items-center gap-3">
             <div className="w-14 h-14 rounded-full bg-white/30 backdrop-blur flex items-center justify-center text-3xl shadow-md">
@@ -66,7 +62,6 @@ export default function SideMenu({ open, onClose, tab, setTab, family }) {
           )}
         </div>
 
-        {/* Меню */}
         <nav className="flex-1 overflow-y-auto p-2">
           {menuItems.map((item) => (
             <button
@@ -100,7 +95,6 @@ export default function SideMenu({ open, onClose, tab, setTab, family }) {
           ))}
         </nav>
 
-        {/* Низ — выход */}
         <div className="p-3 border-t dark:border-slate-700">
           <button
             onClick={logout}

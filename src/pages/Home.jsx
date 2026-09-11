@@ -8,6 +8,7 @@ import FamilyPanel from "../components/FamilyPanel";
 import ThemeSwitcher from "../components/ThemeSwitcher";
 import NotificationsBell from "../components/NotificationsBell";
 import SideMenu from "../components/SideMenu";
+import FamilyMap from "../components/FamilyMap";
 
 export default function Home() {
   const { profile } = useAuth();
@@ -42,6 +43,7 @@ export default function Home() {
   const tabTitle = {
     home: "🏠 Статусы",
     chats: "💬 Чаты",
+    map: "🗺️ Карта",
     family: "👨‍👩‍👧 Семья",
   }[tab];
 
@@ -112,6 +114,12 @@ export default function Home() {
         {tab === "chats" && (
           <div className="animate-fade-in">
             <Chats familyId={family.id} members={members} />
+          </div>
+        )}
+
+        {tab === "map" && (
+          <div className="animate-fade-in">
+            <FamilyMap members={members} />
           </div>
         )}
 
