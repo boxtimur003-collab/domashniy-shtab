@@ -10,9 +10,9 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../context/AuthContext";
+import { getOnlineStatus } from "../utils/formatDate";
 import UserAvatar from "./UserAvatar";
 
-// Локальная функция — НЕ экспортируем (чтобы не конфликтовать с Chats.jsx)
 const makeChatId = (uid1, uid2) => [uid1, uid2].sort().join("_");
 
 export default function ProfileModal({ user, onClose }) {
@@ -23,6 +23,7 @@ export default function ProfileModal({ user, onClose }) {
   if (!user) return null;
 
   const isMe = user.uid === me?.uid;
+  const onlineStatus = getOnlineStatus(user);
 
   const handleWrite = async () => {
     if (busy) return;
@@ -32,7 +33,6 @@ export default function ProfileModal({ user, onClose }) {
     try {
       const chatId = makeChatId(me.uid, user.uid);
 
-      // Проверяем, есть ли уже запрос/чат
       const existingReq = await getDocs(
         query(
           collection(db, "dm_requests"),
@@ -42,7 +42,6 @@ export default function ProfileModal({ user, onClose }) {
       );
 
       if (existingReq.empty) {
-        // Создаём dm-чат
         await setDoc(doc(db, "dms", chatId), {
           id: chatId,
           members: [me.uid, user.uid],
@@ -51,7 +50,6 @@ export default function ProfileModal({ user, onClose }) {
           lastMessage: "",
         });
 
-        // Создаём запрос
         await addDoc(collection(db, "dm_requests"), {
           fromUid: me.uid,
           fromNick: me.nick,
@@ -65,9 +63,7 @@ export default function ProfileModal({ user, onClose }) {
         });
       }
 
-      // Открываем DM-окно
       onClose?.();
-      // Даём React время закрыть модалку, потом переключаем таб
       setTimeout(() => {
         window.dispatchEvent(
           new CustomEvent("open-dm", {
@@ -92,9 +88,7 @@ export default function ProfileModal({ user, onClose }) {
       >
         <div
           className="h-24 relative"
-          style={{
-            background: user.colorTheme || "#6366f1",
-          }}
+          style={{ background: user.colorTheme || "#6366f1" }}
         >
           <button
             onClick={onClose}
@@ -107,7 +101,7 @@ export default function ProfileModal({ user, onClose }) {
         <div className="px-6 pb-6 -mt-12">
           <div className="flex justify-center mb-3">
             <div className="rounded-full bg-white dark:bg-slate-800 p-1">
-              <UserAvatar user={user} size="2xl" />
+              <UserAvatar user={user} size="2xl" showOnline />
             </div>
           </div>
 
@@ -118,6 +112,16 @@ export default function ProfileModal({ user, onClose }) {
             <div className="text-sm text-gray-500 dark:text-gray-400">
               @{user.nick}
             </div>
+            {onlineStatus.text && (
+              <div
+                className={`text-xs mt-1 ${
+                  onlineStatus.online ? "text-green-500" : "text-gray-400"
+                }`}
+              >
+                {onlineStatus.online ? "🟢 " : ""}
+                {onlineStatus.text}
+              </div>
+            )}
           </div>
 
           {user.bio && (

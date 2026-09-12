@@ -86,7 +86,12 @@ export default function FamilyPanel({ family, members, onOpenProfile }) {
               className="flex items-center justify-between p-2 bg-gray-50 dark:bg-slate-700 rounded-lg"
             >
               <div className="flex items-center gap-3">
-                <UserAvatar user={m} size="md" onClick={onOpenProfile} />
+                <UserAvatar
+                  user={m}
+                  size="md"
+                  onClick={onOpenProfile}
+                  showOnline
+                />
                 <div>
                   <div className="font-medium leading-tight dark:text-white">
                     {m.displayName}

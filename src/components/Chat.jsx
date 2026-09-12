@@ -16,8 +16,10 @@ import { useAuth } from "../context/AuthContext";
 import { sendNotification } from "../context/NotificationsContext";
 import { formatMessageDate } from "../utils/formatDate";
 import MessageContextMenu from "./MessageContextMenu";
+import MessageReactions from "./MessageReactions";
 import SearchBar from "./SearchBar";
 import UserAvatar from "./UserAvatar";
+import ForwardModal from "./ForwardModal";
 
 export default function Chat({ familyId, members = [], onOpenProfile }) {
   const { user, profile } = useAuth();
@@ -27,10 +29,14 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
   const [family, setFamily] = useState(null);
   const [menu, setMenu] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [replyTo, setReplyTo] = useState(null);
+  const [forwardMsg, setForwardMsg] = useState(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [searchIdx, setSearchIdx] = useState(0);
+  const [pinned, setPinned] = useState(null);
   const endRef = useRef(null);
+  const inputRef = useRef(null);
   const longPressTimer = useRef(null);
   const scrollToIdRef = useRef(null);
 
@@ -52,6 +58,7 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
     const unsub = onSnapshot(q, async (snap) => {
       const msgs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setMessages(msgs);
+      setPinned(msgs.find((m) => m.pinned));
 
       const uids = [...new Set(msgs.map((m) => m.uid))];
       const missing = uids.filter((uid) => !avatars[uid]);
@@ -63,13 +70,13 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
             if (uSnap.exists()) {
               const u = uSnap.data();
               newAvatars[uid] = {
+                uid: u.uid,
                 avatar: u.avatar || "🐱",
                 name: u.displayName || u.nick,
                 colorTheme: u.colorTheme || "#6366f1",
                 symbol: u.symbol || "",
-                bio: u.bio || "",
                 nick: u.nick,
-                uid: u.uid,
+                lastSeen: u.lastSeen || null,
               };
             }
           })
@@ -81,6 +88,8 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
         if (scrollToIdRef.current) {
           const el = document.getElementById(`msg-${scrollToIdRef.current}`);
           el?.scrollIntoView({ behavior: "smooth", block: "center" });
+          el?.classList.add("highlight-pulse");
+          setTimeout(() => el?.classList.remove("highlight-pulse"), 1500);
           scrollToIdRef.current = null;
         } else {
           endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -110,31 +119,94 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
     e.preventDefault();
     if (!text.trim()) return;
     const msg = text.trim();
+    const replyData = replyTo
+      ? {
+          replyTo: {
+            id: replyTo.id,
+            text: replyTo.text,
+            name: replyTo.name,
+            uid: replyTo.uid,
+          },
+        }
+      : {};
     setText("");
+    setReplyTo(null);
+
     await addDoc(collection(db, "families", familyId, "messages"), {
       text: msg,
       uid: user.uid,
       name: profile.displayName,
       createdAt: Date.now(),
       edited: false,
+      reactions: {},
+      ...replyData,
     });
+
+    const mentions = msg.match(/@([a-zA-Z0-9_]+)/g) || [];
+    const mentionedNicks = mentions.map((m) => m.slice(1).toLowerCase());
 
     const famSnap = await getDoc(doc(db, "families", familyId));
     if (famSnap.exists()) {
       const memberUids = famSnap.data().members || [];
+      const usersSnap = await Promise.all(
+        memberUids.map((uid) => getDoc(doc(db, "users", uid)))
+      );
       await Promise.all(
-        memberUids
-          .filter((uid) => uid !== user.uid)
-          .map((uid) =>
-            sendNotification({
-              toUid: uid,
+        usersSnap.map(async (uSnap) => {
+          if (!uSnap.exists()) return;
+          const u = uSnap.data();
+          if (u.uid === user.uid) return;
+
+          const isMentioned = mentionedNicks.includes(u.nick);
+          if (isMentioned) {
+            await sendNotification({
+              toUid: u.uid,
+              type: "mention",
+              title: `${profile.displayName} упомянул(а) тебя`,
+              body: msg.length > 60 ? msg.slice(0, 60) + "..." : msg,
+            });
+          } else if (u.uid !== replyTo?.uid) {
+            await sendNotification({
+              toUid: u.uid,
               type: "message",
               title: `${profile.displayName} написал(а) в чат семьи`,
               body: msg.length > 60 ? msg.slice(0, 60) + "..." : msg,
-            })
-          )
+            });
+          }
+        })
       );
     }
+  };
+
+  const toggleReaction = async (messageId, emoji) => {
+    const msgRef = doc(db, "families", familyId, "messages", messageId);
+    const msg = messages.find((m) => m.id === messageId);
+    if (!msg) return;
+    const reactions = msg.reactions || {};
+    const users = reactions[emoji] || [];
+    const iReacted = users.includes(user.uid);
+    const newUsers = iReacted
+      ? users.filter((u) => u !== user.uid)
+      : [...users, user.uid];
+
+    await updateDoc(msgRef, {
+      [`reactions.${emoji}`]: newUsers,
+    });
+  };
+
+  const togglePinMessage = async (m) => {
+    await Promise.all(
+      messages
+        .filter((msg) => msg.pinned && msg.id !== m.id)
+        .map((msg) =>
+          updateDoc(doc(db, "families", familyId, "messages", msg.id), {
+            pinned: false,
+          })
+        )
+    );
+    await updateDoc(doc(db, "families", familyId, "messages", m.id), {
+      pinned: !m.pinned,
+    });
   };
 
   const saveEdit = async () => {
@@ -151,6 +223,36 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
 
   const removeMessage = async (m) => {
     await deleteDoc(doc(db, "families", familyId, "messages", m.id));
+  };
+
+  const forwardMessage = async (message, target) => {
+    const payload = {
+      text: message.text,
+      uid: user.uid,
+      name: profile.displayName,
+      createdAt: Date.now(),
+      edited: false,
+      reactions: {},
+      forwardedFrom: message.name,
+    };
+
+    if (target.type === "family") {
+      await addDoc(collection(db, "families", familyId, "messages"), payload);
+    } else {
+      await addDoc(collection(db, "dms", target.chatId, "messages"), {
+        ...payload,
+        avatar: profile.avatar || "🐱",
+      });
+      await updateDoc(doc(db, "dms", target.chatId), {
+        lastMessage: `🔄 ${message.text.slice(0, 40)}`,
+        lastMessageAt: Date.now(),
+      });
+    }
+  };
+
+  const startReply = (m) => {
+    setReplyTo(m);
+    setTimeout(() => inputRef.current?.focus(), 100);
   };
 
   const openMenu = (x, y, message) => setMenu({ x, y, message });
@@ -191,6 +293,39 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
     );
   };
 
+  const renderText = (text) => {
+    if (!text) return text;
+    const parts = text.split(/(@[a-zA-Z0-9_]+)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith("@")) {
+        const nick = part.slice(1).toLowerCase();
+        const member = Object.values(avatars).find((u) => u.nick === nick);
+        if (member) {
+          return (
+            <span
+              key={i}
+              className="text-indigo-400 dark:text-indigo-300 font-medium cursor-pointer hover:underline"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onOpenProfile) onOpenProfile(member);
+              }}
+            >
+              {part}
+            </span>
+          );
+        }
+      }
+      return part;
+    });
+  };
+
+  const jumpToMessage = (id) => {
+    const el = document.getElementById(`msg-${id}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    el?.classList.add("highlight-pulse");
+    setTimeout(() => el?.classList.remove("highlight-pulse"), 1500);
+  };
+
   return (
     <div className="flex flex-col h-[70vh] bg-white dark:bg-slate-800 rounded-2xl shadow-sm overflow-hidden relative">
       {!searchOpen && (
@@ -226,6 +361,18 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
         />
       )}
 
+      {pinned && !searchOpen && (
+        <div
+          onClick={() => jumpToMessage(pinned.id)}
+          className="mx-2 mt-2 p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg border-l-4 border-indigo-500 cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition"
+        >
+          <div className="text-xs text-indigo-600 dark:text-indigo-300 font-medium mb-0.5">
+            📌 Закреплённое
+          </div>
+          <div className="text-sm dark:text-white truncate">{pinned.text}</div>
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto p-4 space-y-2">
         {messages.length === 0 && (
           <div className="text-center text-gray-400 dark:text-gray-500 text-sm py-8">
@@ -237,7 +384,8 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
           const info = avatars[m.uid] || { avatar: "🐱", name: m.name };
           const canEdit = mine;
           const canDelete = isAdmin || mine;
-          const highlighted = search.trim() ? highlight(m.text) : m.text;
+          const highlighted = search.trim() ? highlight(m.text) : null;
+          const reactions = m.reactions || {};
 
           return (
             <div
@@ -249,6 +397,7 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
                 user={info}
                 size="sm"
                 className="mt-1"
+                showOnline
                 onClick={
                   onOpenProfile && !mine
                     ? (u) => onOpenProfile(u)
@@ -270,14 +419,61 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
                   onTouchStart={(e) => handleTouchStart(e, m)}
                   onTouchEnd={handleTouchEnd}
                   onTouchMove={handleTouchEnd}
-                  className={`rounded-2xl px-3 py-2 cursor-pointer select-none ${
+                  className={`rounded-2xl px-3 py-2 cursor-pointer select-none relative ${
                     mine
                       ? "bg-primary text-white"
                       : "bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white"
                   }`}
                 >
+                  {m.pinned && (
+                    <div className="absolute -top-1 -left-1 text-xs">📌</div>
+                  )}
+
+                  {m.forwardedFrom && (
+                    <div
+                      className={`text-[10px] mb-1 flex items-center gap-1 ${
+                        mine ? "text-white/70" : "text-gray-500"
+                      }`}
+                    >
+                      🔄 Переслано от <b>{m.forwardedFrom}</b>
+                    </div>
+                  )}
+
+                  {m.replyTo && (
+                    <div
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        jumpToMessage(m.replyTo.id);
+                      }}
+                      className={`border-l-2 pl-2 mb-1 cursor-pointer hover:opacity-80 transition ${
+                        mine
+                          ? "border-white/50 bg-white/10"
+                          : "border-indigo-400 bg-indigo-50 dark:bg-indigo-900/30"
+                      } rounded-r px-2 py-1`}
+                    >
+                      <div
+                        className={`text-[10px] font-medium ${
+                          mine
+                            ? "text-white/90"
+                            : "text-indigo-600 dark:text-indigo-400"
+                        }`}
+                      >
+                        {m.replyTo.name}
+                      </div>
+                      <div
+                        className={`text-xs truncate ${
+                          mine
+                            ? "text-white/80"
+                            : "text-gray-600 dark:text-gray-300"
+                        }`}
+                      >
+                        {m.replyTo.text}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="text-sm whitespace-pre-wrap break-words">
-                    {highlighted}
+                    {highlighted || renderText(m.text)}
                   </div>
                   <div
                     className={`text-[10px] mt-1 flex items-center gap-1.5 ${
@@ -288,6 +484,12 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
                     <span>{formatMessageDate(m.createdAt)}</span>
                   </div>
                 </div>
+
+                <MessageReactions
+                  reactions={reactions}
+                  myUid={user.uid}
+                  onToggle={(emoji) => toggleReaction(m.id, emoji)}
+                />
               </div>
             </div>
           );
@@ -295,13 +497,34 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
         <div ref={endRef} />
       </div>
 
+      {replyTo && (
+        <div className="border-t dark:border-slate-700 p-2 bg-indigo-50 dark:bg-indigo-900/20 flex items-start gap-2">
+          <div className="text-xl">💬</div>
+          <div className="flex-1 min-w-0">
+            <div className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">
+              Ответ на: {replyTo.name}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-300 truncate">
+              {replyTo.text}
+            </div>
+          </div>
+          <button
+            onClick={() => setReplyTo(null)}
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-white text-xl"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       <form
         onSubmit={send}
         className="border-t dark:border-slate-700 p-3 flex gap-2"
       >
         <input
+          ref={inputRef}
           className="flex-1 border dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition"
-          placeholder="Сообщение..."
+          placeholder="Сообщение... (@ник для упоминания)"
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
@@ -315,11 +538,31 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
         onClose={() => setMenu(null)}
         canEdit={menu?.message.uid === user.uid}
         canDelete={isAdmin || menu?.message.uid === user.uid}
+        isPinned={menu?.message.pinned}
+        reactions={
+          menu?.message.reactions
+            ? Object.entries(menu.message.reactions)
+                .filter(([, users]) => users.includes(user.uid))
+                .map(([emoji]) => emoji)
+            : []
+        }
+        onReact={(emoji) => toggleReaction(menu.message.id, emoji)}
+        onPin={() => togglePinMessage(menu.message)}
+        onReply={() => startReply(menu.message)}
+        onForward={() => setForwardMsg(menu.message)}
         onEdit={() =>
           setEditing({ id: menu.message.id, text: menu.message.text })
         }
         onDelete={() => removeMessage(menu.message)}
       />
+
+      {forwardMsg && (
+        <ForwardModal
+          message={forwardMsg}
+          onClose={() => setForwardMsg(null)}
+          onForward={forwardMessage}
+        />
+      )}
 
       {editing && (
         <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4 animate-fade-in-overlay">

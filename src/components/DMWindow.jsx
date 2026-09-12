@@ -19,8 +19,12 @@ import { useAuth } from "../context/AuthContext";
 import { sendNotification } from "../context/NotificationsContext";
 import { formatMessageDate } from "../utils/formatDate";
 import MessageContextMenu from "./MessageContextMenu";
+import MessageReactions from "./MessageReactions";
 import SearchBar from "./SearchBar";
 import UserAvatar from "./UserAvatar";
+import ForwardModal from "./ForwardModal";
+import PollMessage from "./PollMessage";
+import CreatePollModal from "./CreatePollModal";
 
 export default function DMWindow({
   chatId,
@@ -28,6 +32,7 @@ export default function DMWindow({
   onBack,
   pendingRequest,
   onOpenProfile,
+  familyId,
 }) {
   const { user, profile } = useAuth();
   const [messages, setMessages] = useState([]);
@@ -35,19 +40,24 @@ export default function DMWindow({
   const [otherProfile, setOtherProfile] = useState(null);
   const [menu, setMenu] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [replyTo, setReplyTo] = useState(null);
+  const [forwardMsg, setForwardMsg] = useState(null);
+  const [showCreatePoll, setShowCreatePoll] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [searchIdx, setSearchIdx] = useState(0);
   const [request, setRequest] = useState(pendingRequest || null);
   const endRef = useRef(null);
+  const inputRef = useRef(null);
   const longPressTimer = useRef(null);
   const scrollToIdRef = useRef(null);
 
   useEffect(() => {
     if (!other?.uid) return;
-    getDoc(doc(db, "users", other.uid)).then((snap) => {
+    const unsub = onSnapshot(doc(db, "users", other.uid), (snap) => {
       if (snap.exists()) setOtherProfile(snap.data());
     });
+    return unsub;
   }, [other?.uid]);
 
   useEffect(() => {
@@ -78,6 +88,8 @@ export default function DMWindow({
         if (scrollToIdRef.current) {
           const el = document.getElementById(`msg-${scrollToIdRef.current}`);
           el?.scrollIntoView({ behavior: "smooth", block: "center" });
+          el?.classList.add("highlight-pulse");
+          setTimeout(() => el?.classList.remove("highlight-pulse"), 1500);
           scrollToIdRef.current = null;
         } else {
           endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -111,7 +123,18 @@ export default function DMWindow({
     e.preventDefault();
     if (!text.trim() || !canWrite) return;
     const msg = text.trim();
+    const replyData = replyTo
+      ? {
+          replyTo: {
+            id: replyTo.id,
+            text: replyTo.text,
+            name: replyTo.name,
+            uid: replyTo.uid,
+          },
+        }
+      : {};
     setText("");
+    setReplyTo(null);
     const isFirstMessage = isPending && iAmRequester && messages.length === 0;
 
     await addDoc(collection(db, "dms", chatId, "messages"), {
@@ -121,14 +144,13 @@ export default function DMWindow({
       avatar: profile.avatar || "🐱",
       createdAt: Date.now(),
       edited: false,
+      reactions: {},
+      ...replyData,
     });
 
     await setDoc(
       doc(db, "dms", chatId),
-      {
-        lastMessage: msg,
-        lastMessageAt: Date.now(),
-      },
+      { lastMessage: msg, lastMessageAt: Date.now() },
       { merge: true }
     );
 
@@ -150,6 +172,52 @@ export default function DMWindow({
         body: msg.length > 60 ? msg.slice(0, 60) + "..." : msg,
       });
     }
+  };
+
+  // Создание опроса в DM
+  const createPoll = async (question, options) => {
+    if (!canWrite) return;
+    const votes = {};
+    options.forEach((opt) => (votes[opt] = []));
+
+    await addDoc(collection(db, "dms", chatId, "messages"), {
+      type: "poll",
+      question,
+      options,
+      votes,
+      uid: user.uid,
+      name: profile.displayName,
+      avatar: profile.avatar || "🐱",
+      createdAt: Date.now(),
+    });
+
+    await setDoc(
+      doc(db, "dms", chatId),
+      { lastMessage: `📊 ${question}`, lastMessageAt: Date.now() },
+      { merge: true }
+    );
+
+    if (other?.uid) {
+      await sendNotification({
+        toUid: other.uid,
+        type: "dm",
+        title: `📊 ${profile.displayName} создал(а) опрос`,
+        body: question,
+      });
+    }
+  };
+
+  const toggleReaction = async (messageId, emoji) => {
+    const msgRef = doc(db, "dms", chatId, "messages", messageId);
+    const msg = messages.find((m) => m.id === messageId);
+    if (!msg) return;
+    const reactions = msg.reactions || {};
+    const users = reactions[emoji] || [];
+    const iReacted = users.includes(user.uid);
+    const newUsers = iReacted
+      ? users.filter((u) => u !== user.uid)
+      : [...users, user.uid];
+    await updateDoc(msgRef, { [`reactions.${emoji}`]: newUsers });
   };
 
   const acceptRequest = async () => {
@@ -192,6 +260,33 @@ export default function DMWindow({
     await deleteDoc(doc(db, "dms", chatId, "messages", m.id));
   };
 
+  const forwardMessage = async (message, target) => {
+    const payload = {
+      text: message.text,
+      uid: user.uid,
+      name: profile.displayName,
+      avatar: profile.avatar || "🐱",
+      createdAt: Date.now(),
+      edited: false,
+      reactions: {},
+      forwardedFrom: message.name,
+    };
+    if (target.type === "family" && familyId) {
+      await addDoc(collection(db, "families", familyId, "messages"), payload);
+    } else if (target.type === "dm") {
+      await addDoc(collection(db, "dms", target.chatId, "messages"), payload);
+      await updateDoc(doc(db, "dms", target.chatId), {
+        lastMessage: `🔄 ${message.text.slice(0, 40)}`,
+        lastMessageAt: Date.now(),
+      });
+    }
+  };
+
+  const startReply = (m) => {
+    setReplyTo(m);
+    setTimeout(() => inputRef.current?.focus(), 100);
+  };
+
   const openMenu = (x, y, message) => setMenu({ x, y, message });
 
   const handleContextMenu = (e, m) => {
@@ -230,9 +325,15 @@ export default function DMWindow({
     );
   };
 
+  const jumpToMessage = (id) => {
+    const el = document.getElementById(`msg-${id}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    el?.classList.add("highlight-pulse");
+    setTimeout(() => el?.classList.remove("highlight-pulse"), 1500);
+  };
+
   return (
     <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm flex flex-col h-[70vh] overflow-hidden relative">
-      {/* Хедер */}
       <div className="flex items-center gap-3 p-3 border-b dark:border-slate-700">
         <button
           onClick={onBack}
@@ -243,9 +344,8 @@ export default function DMWindow({
         <UserAvatar
           user={otherProfile}
           size="md"
-          onClick={
-            onOpenProfile ? (u) => onOpenProfile(u) : undefined
-          }
+          onClick={onOpenProfile ? (u) => onOpenProfile(u) : undefined}
+          showOnline
         />
         <div className="flex-1 min-w-0">
           <div className="font-medium leading-tight dark:text-white truncate">
@@ -255,13 +355,21 @@ export default function DMWindow({
             @{otherProfile?.nick || "..."}
           </div>
         </div>
+        {canWrite && (
+          <button
+            onClick={() => setShowCreatePoll(true)}
+            className="w-9 h-9 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center justify-center text-lg transition"
+            title="Опрос"
+          >
+            📊
+          </button>
+        )}
         <button
           onClick={() => {
             setSearchOpen(!searchOpen);
             setSearch("");
           }}
           className="w-9 h-9 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center justify-center text-lg transition"
-          title="Поиск"
         >
           🔍
         </button>
@@ -324,48 +432,131 @@ export default function DMWindow({
         )}
         {messages.map((m) => {
           const mine = m.uid === user.uid;
-          const highlighted = search.trim()
-            ? highlight(m.text || "")
-            : m.text;
+          const highlighted = search.trim() ? highlight(m.text || "") : m.text;
+          const reactions = m.reactions || {};
+          const isPoll = m.type === "poll";
+
           return (
             <div
               key={m.id}
               id={`msg-${m.id}`}
               className={`flex gap-2 ${mine ? "flex-row-reverse" : ""}`}
             >
-              <UserAvatar
-                avatar={m.avatar}
-                size="sm"
-                className="mt-1"
-              />
+              <UserAvatar avatar={m.avatar} size="sm" className="mt-1" />
               <div
-                onContextMenu={(e) => handleContextMenu(e, m)}
-                onTouchStart={(e) => handleTouchStart(e, m)}
-                onTouchEnd={handleTouchEnd}
-                onTouchMove={handleTouchEnd}
-                className={`max-w-[75%] rounded-2xl px-3 py-2 cursor-pointer select-none ${
-                  mine
-                    ? "bg-primary text-white"
-                    : "bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white"
+                className={`max-w-[75%] flex flex-col ${
+                  mine ? "items-end" : ""
                 }`}
               >
-                <div className="text-sm whitespace-pre-wrap break-words">
-                  {highlighted}
-                </div>
                 <div
-                  className={`text-[10px] mt-1 flex items-center gap-1.5 ${
-                    mine ? "text-white/70 justify-end" : "text-gray-400"
+                  onContextMenu={(e) => handleContextMenu(e, m)}
+                  onTouchStart={(e) => handleTouchStart(e, m)}
+                  onTouchEnd={handleTouchEnd}
+                  onTouchMove={handleTouchEnd}
+                  className={`rounded-2xl px-3 py-2 cursor-pointer select-none ${
+                    mine
+                      ? "bg-primary text-white"
+                      : "bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white"
                   }`}
                 >
-                  {m.edited && <span>изменено</span>}
-                  <span>{formatMessageDate(m.createdAt)}</span>
+                  {m.forwardedFrom && (
+                    <div
+                      className={`text-[10px] mb-1 ${
+                        mine ? "text-white/70" : "text-gray-500"
+                      }`}
+                    >
+                      🔄 Переслано от <b>{m.forwardedFrom}</b>
+                    </div>
+                  )}
+
+                  {m.replyTo && (
+                    <div
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        jumpToMessage(m.replyTo.id);
+                      }}
+                      className={`border-l-2 pl-2 mb-1 cursor-pointer hover:opacity-80 transition ${
+                        mine
+                          ? "border-white/50 bg-white/10"
+                          : "border-indigo-400 bg-indigo-50 dark:bg-indigo-900/30"
+                      } rounded-r px-2 py-1`}
+                    >
+                      <div
+                        className={`text-[10px] font-medium ${
+                          mine
+                            ? "text-white/90"
+                            : "text-indigo-600 dark:text-indigo-400"
+                        }`}
+                      >
+                        {m.replyTo.name}
+                      </div>
+                      <div
+                        className={`text-xs truncate ${
+                          mine
+                            ? "text-white/80"
+                            : "text-gray-600 dark:text-gray-300"
+                        }`}
+                      >
+                        {m.replyTo.text}
+                      </div>
+                    </div>
+                  )}
+
+                  {isPoll ? (
+                    <PollMessage
+                      poll={m}
+                      chatPath={{ collection: "dms", id: chatId }}
+                      mine={mine}
+                    />
+                  ) : (
+                    <div className="text-sm whitespace-pre-wrap break-words">
+                      {highlighted}
+                    </div>
+                  )}
+
+                  <div
+                    className={`text-[10px] mt-1 flex items-center gap-1.5 ${
+                      mine ? "text-white/70 justify-end" : "text-gray-400"
+                    }`}
+                  >
+                    {m.edited && <span>изменено</span>}
+                    <span>{formatMessageDate(m.createdAt)}</span>
+                  </div>
                 </div>
+
+                {!isPoll && (
+                  <MessageReactions
+                    reactions={reactions}
+                    myUid={user.uid}
+                    onToggle={(emoji) => toggleReaction(m.id, emoji)}
+                  />
+                )}
               </div>
             </div>
           );
         })}
         <div ref={endRef} />
       </div>
+
+      {replyTo && (
+        <div className="border-t dark:border-slate-700 p-2 bg-indigo-50 dark:bg-indigo-900/20 flex items-start gap-2">
+          <div className="text-xl">💬</div>
+          <div className="flex-1 min-w-0">
+            <div className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">
+              Ответ на: {replyTo.name}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-300 truncate">
+              {replyTo.text}
+            </div>
+          </div>
+          <button
+            onClick={() => setReplyTo(null)}
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-white text-xl"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <form
         onSubmit={send}
@@ -374,6 +565,7 @@ export default function DMWindow({
         {canWrite ? (
           <>
             <input
+              ref={inputRef}
               className="flex-1 border dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition"
               placeholder={
                 isPending && iAmRequester
@@ -399,13 +591,38 @@ export default function DMWindow({
       <MessageContextMenu
         position={menu ? { x: menu.x, y: menu.y } : null}
         onClose={() => setMenu(null)}
-        canEdit={menu?.message.uid === user.uid}
+        canEdit={menu?.message.uid === user.uid && menu?.message.type !== "poll"}
         canDelete={true}
+        reactions={
+          menu?.message.reactions
+            ? Object.entries(menu.message.reactions)
+                .filter(([, users]) => users.includes(user.uid))
+                .map(([emoji]) => emoji)
+            : []
+        }
+        onReact={(emoji) => toggleReaction(menu.message.id, emoji)}
+        onReply={() => startReply(menu.message)}
+        onForward={() => setForwardMsg(menu.message)}
         onEdit={() =>
           setEditing({ id: menu.message.id, text: menu.message.text })
         }
         onDelete={() => removeMessage(menu.message)}
       />
+
+      {showCreatePoll && (
+        <CreatePollModal
+          onClose={() => setShowCreatePoll(false)}
+          onCreate={createPoll}
+        />
+      )}
+
+      {forwardMsg && (
+        <ForwardModal
+          message={forwardMsg}
+          onClose={() => setForwardMsg(null)}
+          onForward={forwardMessage}
+        />
+      )}
 
       {editing && (
         <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4 animate-fade-in-overlay">

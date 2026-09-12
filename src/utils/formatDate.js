@@ -41,3 +41,25 @@ export function formatFullDate(timestamp) {
     minute: "2-digit",
   });
 }
+
+// Онлайн-статус пользователя
+// Возвращает { online: bool, text: string }
+export function getOnlineStatus(user) {
+  if (!user?.lastSeen) return { online: false, text: "" };
+
+  const diff = Date.now() - user.lastSeen;
+  const online = diff < 60 * 1000; // меньше минуты — онлайн
+
+  if (online) return { online: true, text: "в сети" };
+
+  const min = Math.floor(diff / 60000);
+  if (min < 60) return { online: false, text: `был(а) ${min} мин назад` };
+
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return { online: false, text: `был(а) ${hr} ч назад` };
+
+  const days = Math.floor(hr / 24);
+  if (days < 7) return { online: false, text: `был(а) ${days} дн назад` };
+
+  return { online: false, text: "давно" };
+}

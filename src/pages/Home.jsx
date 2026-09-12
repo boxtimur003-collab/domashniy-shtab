@@ -11,14 +11,18 @@ import SideMenu from "../components/SideMenu";
 import FamilyMap from "../components/FamilyMap";
 import UserAvatar from "../components/UserAvatar";
 import ProfileModal from "../components/ProfileModal";
+import useOnlineStatus from "../hooks/useOnlineStatus";
 
 export default function Home() {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const [members, setMembers] = useState([]);
   const [family, setFamily] = useState(null);
   const [tab, setTab] = useState("home");
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(null);
+
+  // Heartbeat — пишем свой lastSeen
+  useOnlineStatus(user);
 
   useEffect(() => {
     if (!profile?.familyId) return;
@@ -99,6 +103,7 @@ export default function Home() {
                         user={m}
                         size="md"
                         onClick={openProfile}
+                        showOnline
                       />
                       <div>
                         <div className="font-medium leading-tight dark:text-white">

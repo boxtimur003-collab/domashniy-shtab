@@ -1,5 +1,4 @@
-// Универсальный компонент аватарки: кружок + эмодзи + рамка + символ
-// Принимает либо {user}, либо прямые {avatar, color, symbol}
+import { getOnlineStatus } from "../utils/formatDate";
 
 const SIZES = {
   xs: "w-6 h-6 text-sm",
@@ -19,6 +18,15 @@ const SYMBOL_SIZES = {
   "2xl": "text-xl -bottom-1 -right-1",
 };
 
+const DOT_SIZES = {
+  xs: "w-2 h-2",
+  sm: "w-2.5 h-2.5",
+  md: "w-3 h-3",
+  lg: "w-3.5 h-3.5",
+  xl: "w-4 h-4",
+  "2xl": "w-5 h-5",
+};
+
 export default function UserAvatar({
   user,
   avatar,
@@ -28,36 +36,66 @@ export default function UserAvatar({
   onClick,
   className = "",
   showSymbol = true,
+  showOnline = false,
 }) {
   const sizeCls = SIZES[size] || SIZES.md;
   const symbolCls = SYMBOL_SIZES[size] || SYMBOL_SIZES.md;
+  const dotCls = DOT_SIZES[size] || DOT_SIZES.md;
 
-  // Берём из user или из прямых параметров
   const finalAvatar = avatar ?? user?.avatar ?? "🐱";
+  const finalAvatarUrl = user?.avatarUrl || null;
   const finalColor = color ?? user?.colorTheme ?? "#6366f1";
   const finalSymbol = symbol ?? user?.symbol ?? "";
 
   const handleClick = (e) => {
     if (onClick) {
       e.stopPropagation();
-      onClick(user || { avatar: finalAvatar, colorTheme: finalColor, symbol: finalSymbol });
+      onClick(
+        user || {
+          avatar: finalAvatar,
+          colorTheme: finalColor,
+          symbol: finalSymbol,
+        }
+      );
     }
   };
 
   const clickable = !!onClick;
+  const onlineStatus = showOnline ? getOnlineStatus(user) : null;
 
   return (
     <div className={`relative inline-block flex-shrink-0 ${className}`}>
       <div
         onClick={handleClick}
-        className={`${sizeCls} rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center font-medium transition ${
+        className={`${sizeCls} rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center font-medium transition overflow-hidden ${
           clickable ? "cursor-pointer hover:scale-105" : ""
         }`}
         style={{ border: `2px solid ${finalColor}` }}
       >
-        {finalAvatar}
+        {finalAvatarUrl ? (
+          <img
+            src={finalAvatarUrl}
+            alt=""
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              e.target.style.display = "none";
+              e.target.parentElement.textContent = finalAvatar;
+            }}
+          />
+        ) : (
+          finalAvatar
+        )}
       </div>
 
+      {/* Онлайн-точка */}
+      {showOnline && onlineStatus?.online && (
+        <span
+          className={`absolute bottom-0 right-0 ${dotCls} bg-green-500 rounded-full border-2 border-white dark:border-slate-800 shadow-sm`}
+          title="В сети"
+        />
+      )}
+
+      {/* Символ */}
       {showSymbol && finalSymbol && (
         <div
           className={`absolute ${symbolCls} bg-white dark:bg-slate-800 rounded-full px-1 leading-none shadow-sm pointer-events-none`}
