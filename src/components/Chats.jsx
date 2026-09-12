@@ -8,10 +8,10 @@ import {
   doc,
   getDocs,
   updateDoc,
+  setDoc,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../context/AuthContext";
-import { sendNotification } from "../context/NotificationsContext";
 import DMWindow from "./DMWindow";
 import Chat from "./Chat";
 import RenameChatModal from "./RenameChatModal";
@@ -26,7 +26,7 @@ export default function Chats({ familyId, members = [] }) {
   const [openDM, setOpenDM] = useState(null);
   const [openFamily, setOpenFamily] = useState(false);
   const [showNewDM, setShowNewDM] = useState(false);
-  const [rename, setRename] = useState(null); // { chatId, current }
+  const [rename, setRename] = useState(null);
   const [searchNick, setSearchNick] = useState("");
   const [searchErr, setSearchErr] = useState("");
   const [searchOk, setSearchOk] = useState("");
@@ -52,7 +52,7 @@ export default function Chats({ familyId, members = [] }) {
     return unsub;
   }, [user.uid, profile?.pinnedChats]);
 
-  // Входящие заявки
+  // Входящие запросы (где я получатель)
   useEffect(() => {
     const q = query(
       collection(db, "dm_requests"),
@@ -64,6 +64,16 @@ export default function Chats({ familyId, members = [] }) {
     });
     return unsub;
   }, [user.uid]);
+
+  // Слушаем событие open-dm от ProfileModal
+  useEffect(() => {
+    const handler = (e) => {
+      const { chatId, otherUid } = e.detail;
+      setOpenDM({ chatId, other: { uid: otherUid } });
+    };
+    window.addEventListener("open-dm", handler);
+    return () => window.removeEventListener("open-dm", handler);
+  }, []);
 
   const copyMyNick = async () => {
     try {
@@ -97,6 +107,7 @@ export default function Chats({ familyId, members = [] }) {
       }
       const target = uSnap.docs[0].data();
       const chatId = makeChatId(user.uid, target.uid);
+
       const existing = await getDocs(
         query(
           collection(db, "dm_requests"),
@@ -110,6 +121,14 @@ export default function Chats({ familyId, members = [] }) {
         return;
       }
 
+      await setDoc(doc(db, "dms", chatId), {
+        id: chatId,
+        members: [user.uid, target.uid],
+        createdAt: Date.now(),
+        lastMessageAt: Date.now(),
+        lastMessage: "",
+      });
+
       await addDoc(collection(db, "dm_requests"), {
         fromUid: user.uid,
         fromNick: profile.nick,
@@ -122,40 +141,18 @@ export default function Chats({ familyId, members = [] }) {
         createdAt: Date.now(),
       });
 
-      await sendNotification({
-        toUid: target.uid,
-        type: "dm_request",
-        title: `${profile.displayName} хочет с тобой общаться`,
-        body: `Ник для ответа: @${profile.nick}. Прими или отклони в личных чатах`,
-      });
-
-      setSearchOk(`Запрос отправлен @${target.nick}`);
+      setSearchOk(`Открыли чат с @${target.nick}. Напиши первое сообщение.`);
       setSearchNick("");
+      setShowNewDM(false);
+      setOpenDM({
+        chatId,
+        other: { uid: target.uid },
+        pendingRequest: true,
+      });
     } catch (e) {
       setSearchErr(e.message);
     }
     setBusy(false);
-  };
-
-  const acceptDm = async (req) => {
-    await addDoc(collection(db, "dms"), {
-      id: req.chatId,
-      members: [user.uid, req.fromUid],
-      createdAt: Date.now(),
-      lastMessageAt: Date.now(),
-      lastMessage: "",
-    });
-    await updateDoc(doc(db, "dm_requests", req.id), { status: "accepted" });
-    await sendNotification({
-      toUid: req.fromUid,
-      type: "dm_request",
-      title: `${profile.displayName} принял(а) запрос на переписку`,
-      body: "Теперь вы можете общаться в личных сообщениях",
-    });
-  };
-
-  const rejectDm = async (req) => {
-    await updateDoc(doc(db, "dm_requests", req.id), { status: "rejected" });
   };
 
   const togglePin = async (chatId) => {
@@ -166,10 +163,8 @@ export default function Chats({ familyId, members = [] }) {
     await updateDoc(doc(db, "users", user.uid), { pinnedChats: newPinned });
   };
 
-  const getMemberInfo = (uid) =>
-    members.find((m) => m.uid === uid);
+  const getMemberInfo = (uid) => members.find((m) => m.uid === uid);
 
-  // Если открыт семейный чат
   if (openFamily) {
     return (
       <div className="space-y-3">
@@ -184,7 +179,6 @@ export default function Chats({ familyId, members = [] }) {
     );
   }
 
-  // Если открыт личный чат
   if (openDM) {
     return (
       <div className="space-y-3">
@@ -198,15 +192,14 @@ export default function Chats({ familyId, members = [] }) {
           chatId={openDM.chatId}
           other={openDM.other}
           onBack={() => setOpenDM(null)}
+          pendingRequest={openDM.pendingRequest}
         />
       </div>
     );
   }
 
-  // Главный список чатов (как в Telegram)
   return (
     <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm overflow-hidden">
-      {/* Верхнее меню */}
       <div className="flex items-center gap-2 p-3 border-b dark:border-slate-700">
         <button
           onClick={() => setShowNewDM(true)}
@@ -227,7 +220,6 @@ export default function Chats({ familyId, members = [] }) {
         </button>
       </div>
 
-      {/* Список чатов */}
       <div className="divide-y dark:divide-slate-700">
         {/* Семейный чат */}
         <button
@@ -247,67 +239,15 @@ export default function Chats({ familyId, members = [] }) {
           </div>
         </button>
 
-        {/* Входящие заявки — сверху */}
-        {incoming.length > 0 && (
-          <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20">
-            <div className="text-xs text-yellow-700 dark:text-yellow-400 font-medium mb-2 px-1">
-              📨 Заявки на переписку ({incoming.length})
-            </div>
-            <div className="space-y-2">
-              {incoming.map((r) => (
-                <div
-                  key={r.id}
-                  className="flex items-center justify-between p-2 bg-white dark:bg-slate-800 rounded-lg"
-                >
-                  <div className="flex items-center gap-2">
-                    <div className="w-9 h-9 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center text-lg">
-                      {r.fromAvatar}
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium dark:text-white">
-                        {r.fromName}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        @{r.fromNick}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        acceptDm(r);
-                      }}
-                      className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-xs transition"
-                    >
-                      ✓
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        rejectDm(r);
-                      }}
-                      className="bg-gray-200 dark:bg-slate-600 px-3 py-1 rounded text-xs transition"
-                    >
-                      ✗
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Личные чаты */}
         {myChats.map((c) => {
           const otherUid = c.members.find((m) => m !== user.uid);
           const isPinned = profile?.pinnedChats?.includes(c.id);
           const otherInfo = getMemberInfo(otherUid);
-          // Локальное имя чата
           const customName = profile?.chatNames?.[c.id];
-          const displayName =
-            customName || otherInfo?.displayName || "Чат";
+          const displayName = customName || otherInfo?.displayName || "Чат";
           const displayAvatar = otherInfo?.avatar || "💬";
+          const isPending = incoming.some((r) => r.chatId === c.id);
 
           return (
             <div
@@ -327,6 +267,11 @@ export default function Chats({ familyId, members = [] }) {
                 <div className="font-semibold dark:text-white truncate flex items-center gap-1">
                   {isPinned && <span>📌</span>}
                   <span className="truncate">{displayName}</span>
+                  {isPending && (
+                    <span className="text-xs bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400 px-1.5 py-0.5 rounded">
+                      ⏳
+                    </span>
+                  )}
                 </div>
                 <div className="text-xs text-gray-400 truncate">
                   {c.lastMessage || "Нет сообщений"}
@@ -338,7 +283,6 @@ export default function Chats({ familyId, members = [] }) {
                 </div>
               </div>
 
-              {/* Кнопки действий */}
               <div
                 className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition"
                 onClick={(e) => e.stopPropagation()}
@@ -364,8 +308,7 @@ export default function Chats({ familyId, members = [] }) {
           );
         })}
 
-        {/* Пусто */}
-        {myChats.length === 0 && incoming.length === 0 && (
+        {myChats.length === 0 && (
           <div className="text-center text-gray-400 dark:text-gray-500 text-sm py-12">
             <div className="text-4xl mb-2">💬</div>
             <div>Пока нет личных чатов</div>
@@ -376,7 +319,7 @@ export default function Chats({ familyId, members = [] }) {
         )}
       </div>
 
-      {/* Модалка "Новый чат" */}
+      {/* Модалка «Новый чат» */}
       {showNewDM && (
         <div
           className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4 animate-fade-in-overlay"
@@ -421,7 +364,8 @@ export default function Chats({ familyId, members = [] }) {
             </div>
 
             <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-              Введи ник собеседника
+              Введи ник собеседника. Ему уйдёт запрос, а ты сможешь написать
+              первое сообщение.
             </div>
             <input
               className="w-full border dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition"
@@ -447,7 +391,7 @@ export default function Chats({ familyId, members = [] }) {
                 disabled={busy || !searchNick.trim()}
                 className="flex-1 bg-primary hover:bg-indigo-600 text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50 transition"
               >
-                {busy ? "..." : "Отправить запрос"}
+                {busy ? "..." : "Открыть чат"}
               </button>
               <button
                 onClick={() => setShowNewDM(false)}
@@ -460,7 +404,6 @@ export default function Chats({ familyId, members = [] }) {
         </div>
       )}
 
-      {/* Модалка переименования */}
       {rename && (
         <RenameChatModal
           chatId={rename.chatId}

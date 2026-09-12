@@ -1,8 +1,18 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import UserAvatar from "./UserAvatar";
+import EditProfileModal from "./EditProfileModal";
 
-export default function SideMenu({ open, onClose, tab, setTab, family }) {
+export default function SideMenu({
+  open,
+  onClose,
+  tab,
+  setTab,
+  family,
+  onOpenProfile,
+}) {
   const { profile, logout } = useAuth();
+  const [editOpen, setEditOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -41,11 +51,14 @@ export default function SideMenu({ open, onClose, tab, setTab, family }) {
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
+        {/* Шапка — карточка профиля */}
         <div className="p-5 border-b dark:border-slate-700 bg-gradient-to-br from-indigo-500 to-purple-600">
           <div className="flex items-center gap-3">
-            <div className="w-14 h-14 rounded-full bg-white/30 backdrop-blur flex items-center justify-center text-3xl shadow-md">
-              {profile?.avatar || "🐱"}
-            </div>
+            <UserAvatar
+              user={profile}
+              size="xl"
+              className="border-4 border-white/40 rounded-full"
+            />
             <div className="min-w-0 flex-1">
               <div className="font-bold text-white truncate">
                 {profile?.displayName || "Гость"}
@@ -55,6 +68,28 @@ export default function SideMenu({ open, onClose, tab, setTab, family }) {
               </div>
             </div>
           </div>
+
+          {/* Кнопки под профилем */}
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={() => {
+                onClose();
+                if (onOpenProfile) onOpenProfile(profile);
+              }}
+              className="flex-1 text-xs bg-white/20 hover:bg-white/30 text-white rounded-lg py-1.5 transition"
+            >
+              👤 Профиль
+            </button>
+            <button
+              onClick={() => {
+                setEditOpen(true);
+              }}
+              className="flex-1 text-xs bg-white/20 hover:bg-white/30 text-white rounded-lg py-1.5 transition"
+            >
+              ⚙️ Настроить
+            </button>
+          </div>
+
           {family && (
             <div className="mt-3 text-xs text-white/90 truncate">
               🏠 {family.name}
@@ -105,6 +140,10 @@ export default function SideMenu({ open, onClose, tab, setTab, family }) {
           </button>
         </div>
       </aside>
+
+      {editOpen && (
+        <EditProfileModal onClose={() => setEditOpen(false)} />
+      )}
     </>
   );
 }

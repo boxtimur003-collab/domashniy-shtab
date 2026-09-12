@@ -8,6 +8,38 @@ import { NotificationsProvider } from "./context/NotificationsContext";
 import { PushProvider } from "./context/PushContext";
 import "./index.css";
 
+// Регистрируем Service Worker для PWA
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("/sw.js")
+      .then((reg) => {
+        console.log("✅ SW registered:", reg.scope);
+
+        // Проверяем обновления каждые 30 минут
+        setInterval(() => {
+          reg.update();
+        }, 30 * 60 * 1000);
+
+        // Если найдено обновление — применяем сразу
+        reg.addEventListener("updatefound", () => {
+          const newWorker = reg.installing;
+          newWorker?.addEventListener("statechange", () => {
+            if (
+              newWorker.state === "installed" &&
+              navigator.serviceWorker.controller
+            ) {
+              console.log("🔄 Доступно обновление");
+              // Автоматически активируем новую версию
+              newWorker.postMessage({ type: "SKIP_WAITING" });
+            }
+          });
+        });
+      })
+      .catch((e) => console.log("SW error:", e));
+  });
+}
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <BrowserRouter>
     <ThemeProvider>

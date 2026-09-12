@@ -9,6 +9,8 @@ import ThemeSwitcher from "../components/ThemeSwitcher";
 import NotificationsBell from "../components/NotificationsBell";
 import SideMenu from "../components/SideMenu";
 import FamilyMap from "../components/FamilyMap";
+import UserAvatar from "../components/UserAvatar";
+import ProfileModal from "../components/ProfileModal";
 
 export default function Home() {
   const { profile } = useAuth();
@@ -16,6 +18,7 @@ export default function Home() {
   const [family, setFamily] = useState(null);
   const [tab, setTab] = useState("home");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(null);
 
   useEffect(() => {
     if (!profile?.familyId) return;
@@ -47,6 +50,10 @@ export default function Home() {
     family: "👨‍👩‍👧 Семья",
   }[tab];
 
+  const openProfile = (u) => {
+    if (u && u.uid) setProfileOpen(u);
+  };
+
   return (
     <div className="min-h-screen pb-6">
       <ThemeSwitcher />
@@ -58,6 +65,7 @@ export default function Home() {
         tab={tab}
         setTab={setTab}
         family={family}
+        onOpenProfile={openProfile}
       />
 
       <header className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b dark:border-slate-700 sticky top-0 z-30">
@@ -87,9 +95,11 @@ export default function Home() {
                     className="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-slate-700"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center text-xl">
-                        {m.avatar || "🐱"}
-                      </div>
+                      <UserAvatar
+                        user={m}
+                        size="md"
+                        onClick={openProfile}
+                      />
                       <div>
                         <div className="font-medium leading-tight dark:text-white">
                           {m.displayName}
@@ -113,7 +123,11 @@ export default function Home() {
 
         {tab === "chats" && (
           <div className="animate-fade-in">
-            <Chats familyId={family.id} members={members} />
+            <Chats
+              familyId={family.id}
+              members={members}
+              onOpenProfile={openProfile}
+            />
           </div>
         )}
 
@@ -125,10 +139,21 @@ export default function Home() {
 
         {tab === "family" && (
           <div className="animate-fade-in">
-            <FamilyPanel family={family} members={members} />
+            <FamilyPanel
+              family={family}
+              members={members}
+              onOpenProfile={openProfile}
+            />
           </div>
         )}
       </main>
+
+      {profileOpen && (
+        <ProfileModal
+          user={profileOpen}
+          onClose={() => setProfileOpen(null)}
+        />
+      )}
     </div>
   );
 }

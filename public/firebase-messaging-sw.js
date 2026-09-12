@@ -19,6 +19,7 @@ messaging.onBackgroundMessage((payload) => {
   const title = payload.notification?.title || "Домашний штаб";
   const options = {
     body: payload.notification?.body || "",
+    icon: "/icon-192.png",
     badge: "/icon-192.png",
     data: payload.data || {},
   };

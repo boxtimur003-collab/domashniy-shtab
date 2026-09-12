@@ -26,14 +26,29 @@ export default function StatusWidget() {
     reloadProfile();
   };
 
+  const color = profile?.colorTheme || "#6366f1";
+
   return (
     <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm">
       <div className="flex items-center gap-3 mb-4">
         <button
           onClick={() => setShowAvatarPicker(!showAvatarPicker)}
-          className="w-14 h-14 rounded-full bg-indigo-50 dark:bg-indigo-900 hover:bg-indigo-100 dark:hover:bg-indigo-800 flex items-center justify-center text-3xl transition border-2 border-indigo-200 dark:border-indigo-700 hover:scale-105"
+          className="relative flex-shrink-0 hover:scale-105 transition"
         >
-          {profile?.avatar || "🐱"}
+          <div
+            className="w-14 h-14 rounded-full bg-indigo-50 dark:bg-indigo-900 flex items-center justify-center text-3xl"
+            style={{ border: `2px solid ${color}` }}
+          >
+            {profile?.avatar || "🐱"}
+          </div>
+          {profile?.symbol && (
+            <div
+              className="absolute -bottom-1 -right-1 bg-white dark:bg-slate-800 rounded-full px-1 text-base leading-none shadow-sm"
+              style={{ border: `1.5px solid ${color}` }}
+            >
+              {profile.symbol}
+            </div>
+          )}
         </button>
         <div>
           <h2 className="font-semibold dark:text-white">
@@ -55,7 +70,9 @@ export default function StatusWidget() {
                 setShowAvatarPicker(false);
               }}
               className={`text-2xl p-1 rounded hover:bg-indigo-100 dark:hover:bg-indigo-800 transition ${
-                profile?.avatar === emoji ? "bg-indigo-200 dark:bg-indigo-700" : ""
+                profile?.avatar === emoji
+                  ? "bg-indigo-200 dark:bg-indigo-700"
+                  : ""
               }`}
             >
               {emoji}

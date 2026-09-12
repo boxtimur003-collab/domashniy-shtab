@@ -12,8 +12,9 @@ import {
 import { db } from "../firebase";
 import { useAuth } from "../context/AuthContext";
 import { sendNotification } from "../context/NotificationsContext";
+import UserAvatar from "./UserAvatar";
 
-export default function FamilyPanel({ family, members }) {
+export default function FamilyPanel({ family, members, onOpenProfile }) {
   const { user, reloadProfile } = useAuth();
   const [requests, setRequests] = useState([]);
   const [confirmLeave, setConfirmLeave] = useState(false);
@@ -85,9 +86,7 @@ export default function FamilyPanel({ family, members }) {
               className="flex items-center justify-between p-2 bg-gray-50 dark:bg-slate-700 rounded-lg"
             >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center text-xl">
-                  {m.avatar || "🐱"}
-                </div>
+                <UserAvatar user={m} size="md" onClick={onOpenProfile} />
                 <div>
                   <div className="font-medium leading-tight dark:text-white">
                     {m.displayName}
