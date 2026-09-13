@@ -4,24 +4,21 @@ import { db } from "../firebase";
 import { useAuth } from "../context/AuthContext";
 import StatusWidget from "../components/StatusWidget";
 import Chats from "../components/Chats";
-import FamilyPanel from "../components/FamilyPanel";
-import ThemeSwitcher from "../components/ThemeSwitcher";
 import NotificationsBell from "../components/NotificationsBell";
-import SideMenu from "../components/SideMenu";
 import FamilyMap from "../components/FamilyMap";
 import UserAvatar from "../components/UserAvatar";
 import ProfileModal from "../components/ProfileModal";
+import BottomNav from "../components/BottomNav";
+import Settings from "./Settings";
 import useOnlineStatus from "../hooks/useOnlineStatus";
 
 export default function Home() {
   const { user, profile } = useAuth();
   const [members, setMembers] = useState([]);
   const [family, setFamily] = useState(null);
-  const [tab, setTab] = useState("home");
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [tab, setTab] = useState("chats");
   const [profileOpen, setProfileOpen] = useState(null);
 
-  // Heartbeat — пишем свой lastSeen
   useOnlineStatus(user);
 
   useEffect(() => {
@@ -48,10 +45,10 @@ export default function Home() {
     return <div className="p-8 dark:text-white">Загрузка семьи...</div>;
 
   const tabTitle = {
-    home: "🏠 Статусы",
-    chats: "💬 Чаты",
-    map: "🗺️ Карта",
-    family: "👨‍👩‍👧 Семья",
+    home: "Главная",
+    chats: "Чаты",
+    map: "Карта",
+    settings: "Настройки",
   }[tab];
 
   const openProfile = (u) => {
@@ -59,29 +56,12 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen pb-6">
-      <ThemeSwitcher />
+    <div className="min-h-screen pb-20">
       <NotificationsBell />
 
-      <SideMenu
-        open={menuOpen}
-        onClose={() => setMenuOpen(false)}
-        tab={tab}
-        setTab={setTab}
-        family={family}
-        onOpenProfile={openProfile}
-      />
-
-      <header className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b dark:border-slate-700 sticky top-0 z-30">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3 pr-28">
-          <button
-            onClick={() => setMenuOpen(true)}
-            className="w-10 h-10 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center justify-center text-xl transition"
-            title="Меню"
-          >
-            ☰
-          </button>
-          <h1 className="font-bold dark:text-white flex-1 truncate">
+      <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b dark:border-slate-700 sticky top-0 z-30">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3 pr-20">
+          <h1 className="text-2xl font-bold dark:text-white flex-1">
             {tabTitle}
           </h1>
         </div>
@@ -142,16 +122,14 @@ export default function Home() {
           </div>
         )}
 
-        {tab === "family" && (
+        {tab === "settings" && (
           <div className="animate-fade-in">
-            <FamilyPanel
-              family={family}
-              members={members}
-              onOpenProfile={openProfile}
-            />
+            <Settings />
           </div>
         )}
       </main>
+
+      <BottomNav tab={tab} setTab={setTab} />
 
       {profileOpen && (
         <ProfileModal

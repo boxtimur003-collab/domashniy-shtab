@@ -18,6 +18,7 @@ import Chat from "./Chat";
 import RenameChatModal from "./RenameChatModal";
 import ChatContextMenu from "./ChatContextMenu";
 import UserAvatar from "./UserAvatar";
+import Icon from "./Icon";
 import { formatMessageDate } from "../utils/formatDate";
 
 export const makeChatId = (uid1, uid2) => [uid1, uid2].sort().join("_");
@@ -40,7 +41,6 @@ export default function Chats({ familyId, members = [], onOpenProfile }) {
   const [tab, setTab] = useState("all");
   const longPressTimer = useRef(null);
 
-  // Подписка на личные чаты
   useEffect(() => {
     const q = query(
       collection(db, "dms"),
@@ -59,7 +59,6 @@ export default function Chats({ familyId, members = [], onOpenProfile }) {
     return unsub;
   }, [user.uid, profile?.pinnedChats]);
 
-  // Входящие запросы
   useEffect(() => {
     const q = query(
       collection(db, "dm_requests"),
@@ -72,7 +71,6 @@ export default function Chats({ familyId, members = [], onOpenProfile }) {
     return unsub;
   }, [user.uid]);
 
-  // Слушаем open-dm
   useEffect(() => {
     const handler = (e) => {
       const { chatId, otherUid } = e.detail;
@@ -215,78 +213,45 @@ export default function Chats({ familyId, members = [], onOpenProfile }) {
     }
   };
 
-  // Превью последнего сообщения
   const getPreview = (chat) => {
     const msg = chat.lastMessage || "";
     if (!msg) return "Нет сообщений";
     return msg.length > 80 ? msg.slice(0, 80) + "..." : msg;
   };
 
-  // Проверка: последнее сообщение — моё
   const isLastMine = (chat) => chat.lastSenderUid === user.uid;
 
-  // ============ РЕНДЕР ОТКРЫТОГО СЕМЕЙНОГО ============
+  // ============ СЕМЕЙНЫЙ ЧАТ ============
   if (openFamily) {
     return (
-      <div className="h-[calc(100vh-140px)] flex flex-col">
-        <button
-          onClick={() => setOpenFamily(false)}
-          className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-primary transition px-3 py-2"
-        >
-          ← Все чаты
-        </button>
-        <div className="flex-1">
-          <Chat
-            familyId={familyId}
-            members={members}
-            onOpenProfile={onOpenProfile}
-          />
-        </div>
-      </div>
+      <Chat
+        familyId={familyId}
+        members={members}
+        onOpenProfile={onOpenProfile}
+        onBack={() => setOpenFamily(false)}
+      />
     );
   }
 
-  // ============ РЕНДЕР ОТКРЫТОГО ЛИЧНОГО ============
+  // ============ ЛИЧНЫЙ ЧАТ ============
   if (openDM) {
     return (
-      <div className="h-[calc(100vh-140px)] flex flex-col">
-        <button
-          onClick={() => setOpenDM(null)}
-          className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-primary transition px-3 py-2"
-        >
-          ← Все чаты
-        </button>
-        <div className="flex-1">
-          <DMWindow
-            chatId={openDM.chatId}
-            other={openDM.other}
-            onBack={() => setOpenDM(null)}
-            pendingRequest={openDM.pendingRequest}
-            onOpenProfile={onOpenProfile}
-            familyId={familyId}
-          />
-        </div>
-      </div>
+      <DMWindow
+        chatId={openDM.chatId}
+        other={openDM.other}
+        onBack={() => setOpenDM(null)}
+        pendingRequest={openDM.pendingRequest}
+        onOpenProfile={onOpenProfile}
+        familyId={familyId}
+      />
     );
   }
 
   // ============ ГЛАВНЫЙ СПИСОК ============
   return (
-    <div className="relative min-h-[calc(100vh-140px)]">
-      {/* Верхняя панель */}
-      <div className="flex items-center justify-between px-1 pb-3">
-        <h1 className="text-2xl font-bold dark:text-white">Чаты</h1>
-        <button
-          onClick={() => setShowNewDM(true)}
-          className="w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center justify-center text-xl transition"
-          title="Поиск по нику"
-        >
-          🔍
-        </button>
-      </div>
-
+    <div className="relative">
       {/* Горизонтальные табы */}
-      <div className="flex gap-2 px-1 pb-3 overflow-x-auto scrollbar-none">
+      <div className="flex gap-2 pb-3 overflow-x-auto scrollbar-none">
         {[
           { id: "all", label: "Все" },
           { id: "unread", label: "Непрочитанные" },
@@ -308,22 +273,19 @@ export default function Chats({ familyId, members = [], onOpenProfile }) {
 
       {/* Список чатов */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl overflow-hidden shadow-sm">
-        {/* Семейный чат — всегда первый (если таб = all или family) */}
+        {/* Семейный чат */}
         {(tab === "all" || tab === "family") && (
           <button
             onClick={() => setOpenFamily(true)}
             className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-slate-700 transition text-left border-b dark:border-slate-700/60"
           >
-            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-2xl shadow-sm flex-shrink-0">
-              👨‍👩‍👧
+            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-sm flex-shrink-0">
+              <Icon name="users" size={26} />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-baseline justify-between gap-2">
                 <div className="font-semibold dark:text-white truncate">
                   Семейный чат
-                </div>
-                <div className="text-xs text-gray-400 whitespace-nowrap">
-                  сейчас
                 </div>
               </div>
               <div className="text-sm text-gray-500 dark:text-gray-400 truncate">
@@ -371,7 +333,13 @@ export default function Chats({ familyId, members = [], onOpenProfile }) {
               <div className="flex-1 min-w-0">
                 <div className="flex items-baseline justify-between gap-2 mb-0.5">
                   <div className="font-semibold dark:text-white truncate flex items-center gap-1">
-                    {isPinned && <span className="text-xs">📌</span>}
+                    {isPinned && (
+                      <Icon
+                        name="pin"
+                        size={12}
+                        className="text-primary flex-shrink-0"
+                      />
+                    )}
                     <span className="truncate">{displayName}</span>
                     {isPending && (
                       <span className="text-[10px] bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400 px-1.5 py-0.5 rounded-full">
@@ -381,7 +349,11 @@ export default function Chats({ familyId, members = [], onOpenProfile }) {
                   </div>
                   <div className="text-xs text-gray-400 whitespace-nowrap flex items-center gap-1">
                     {lastMine && (
-                      <span className="text-primary text-sm">✓✓</span>
+                      <Icon
+                        name="check-check"
+                        size={14}
+                        className="text-primary"
+                      />
                     )}
                     <span>
                       {c.lastMessageAt
@@ -401,22 +373,24 @@ export default function Chats({ familyId, members = [], onOpenProfile }) {
         {/* Пусто */}
         {myChats.length === 0 && tab !== "family" && (
           <div className="text-center text-gray-400 dark:text-gray-500 text-sm py-12 px-4">
-            <div className="text-4xl mb-2">💬</div>
+            <div className="flex justify-center mb-3">
+              <Icon name="message-circle" size={48} />
+            </div>
             <div className="font-medium">Пока нет личных чатов</div>
             <div className="text-xs mt-1">
-              Нажми «✏️» внизу справа, чтобы начать переписку
+              Нажми «карандаш» внизу справа, чтобы начать переписку
             </div>
           </div>
         )}
       </div>
 
-      {/* Плавающая кнопка ✏️ */}
+      {/* Плавающая кнопка */}
       <button
         onClick={() => setShowNewDM(true)}
-        className="fixed bottom-24 right-6 z-30 w-14 h-14 rounded-full bg-primary hover:bg-indigo-600 text-white flex items-center justify-center text-2xl shadow-2xl hover:scale-110 transition"
+        className="fixed bottom-24 right-6 z-30 w-14 h-14 rounded-full bg-primary hover:bg-indigo-600 text-white flex items-center justify-center shadow-2xl hover:scale-110 transition"
         title="Новый чат"
       >
-        ✏️
+        <Icon name="pencil" size={22} />
       </button>
 
       {/* Меню чата */}
@@ -439,8 +413,9 @@ export default function Chats({ familyId, members = [], onOpenProfile }) {
       {confirmDelete && (
         <div className="fixed inset-0 bg-black/50 z-[80] flex items-center justify-center p-4 animate-fade-in-overlay">
           <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 w-full max-w-sm shadow-2xl animate-slide-up">
-            <h3 className="font-bold text-lg dark:text-white mb-2">
-              🗑️ Удалить чат?
+            <h3 className="font-bold text-lg dark:text-white mb-2 flex items-center gap-2">
+              <Icon name="trash-2" size={18} className="text-red-500" />
+              Удалить чат?
             </h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
               Все сообщения в этом чате будут удалены у обоих участников. Это
@@ -475,19 +450,19 @@ export default function Chats({ familyId, members = [], onOpenProfile }) {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-3">
-              <h3 className="font-bold text-lg dark:text-white">
-                ➕ Новый чат
-              </h3>
+              <h3 className="font-bold text-lg dark:text-white">Новый чат</h3>
               <button
                 onClick={() => setShowNewDM(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-white text-xl"
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-white"
               >
-                ✕
+                <Icon name="x" size={20} />
               </button>
             </div>
 
             <div className="bg-indigo-50 dark:bg-indigo-900/30 rounded-lg p-3 mb-3 flex items-center gap-2">
-              <div className="text-xl">📇</div>
+              <div className="w-9 h-9 rounded-full bg-white dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+                <Icon name="user" size={18} className="text-primary" />
+              </div>
               <div className="flex-1 min-w-0">
                 <div className="text-xs text-gray-500 dark:text-gray-400">
                   Твой ник
@@ -498,13 +473,20 @@ export default function Chats({ familyId, members = [], onOpenProfile }) {
               </div>
               <button
                 onClick={copyMyNick}
-                className={`px-2 py-1 rounded text-xs transition ${
+                className={`px-2 py-1 rounded text-xs transition flex items-center gap-1 ${
                   copied
                     ? "bg-green-500 text-white"
                     : "bg-white dark:bg-slate-700 text-primary hover:bg-indigo-100 dark:hover:bg-slate-600"
                 }`}
               >
-                {copied ? "✓" : "Копировать"}
+                {copied ? (
+                  <>
+                    <Icon name="check" size={12} />
+                    <span>Скопировано</span>
+                  </>
+                ) : (
+                  <span>Копировать</span>
+                )}
               </button>
             </div>
 

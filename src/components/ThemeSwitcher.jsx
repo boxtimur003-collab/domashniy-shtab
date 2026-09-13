@@ -1,20 +1,25 @@
 import { useState } from "react";
 import { useTheme, BACKGROUNDS, THEMES } from "../context/ThemeContext";
+import Icon from "./Icon";
 
 export default function ThemeSwitcher() {
   const { theme, bg, setBg, changeTheme } = useTheme();
   const [open, setOpen] = useState(false);
-
   const backgrounds = BACKGROUNDS[theme];
 
   return (
     <>
+      {/* Иконка — теперь через SVG */}
       <button
         onClick={() => setOpen(!open)}
-        className="fixed top-3 right-3 z-40 w-10 h-10 rounded-full bg-white dark:bg-slate-800 shadow-lg flex items-center justify-center text-xl hover:scale-110 transition"
+        className="fixed top-3 right-3 z-40 w-10 h-10 rounded-full bg-white dark:bg-slate-800 shadow-lg flex items-center justify-center text-gray-700 dark:text-gray-200 hover:scale-110 transition"
         title="Настройки вида"
       >
-        {theme === "dark" ? "🌙" : "☀️"}
+        {theme === "dark" ? (
+          <Icon name="settings" size={20} />
+        ) : (
+          <Icon name="settings" size={20} />
+        )}
       </button>
 
       {open && (
@@ -27,12 +32,13 @@ export default function ThemeSwitcher() {
               </h2>
               <button
                 onClick={() => setOpen(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-white text-xl"
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-white"
               >
-                ✕
+                <Icon name="x" size={20} />
               </button>
             </div>
 
+            {/* Тема */}
             <div className="mb-5">
               <div className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
                 Тема
@@ -48,15 +54,16 @@ export default function ThemeSwitcher() {
                         : "bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300"
                     }`}
                   >
-                    {t === "light" ? "☀️ Светлая" : "🌙 Тёмная"}
+                    {t === "dark" ? "🌙 Тёмная" : "☀️ Светлая"}
                   </button>
                 ))}
               </div>
             </div>
 
+            {/* Фон */}
             <div>
               <div className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-                Фон
+                Фон приложения
               </div>
               <div className="grid grid-cols-3 gap-2">
                 {backgrounds.map((b) => (

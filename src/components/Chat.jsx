@@ -15,6 +15,10 @@ import { db } from "../firebase";
 import { useAuth } from "../context/AuthContext";
 import { sendNotification } from "../context/NotificationsContext";
 import { formatMessageDate } from "../utils/formatDate";
+import {
+  getChatBackground,
+  subscribeToBgChange,
+} from "../utils/chatBackgrounds";
 import MessageContextMenu from "./MessageContextMenu";
 import MessageReactions from "./MessageReactions";
 import SearchBar from "./SearchBar";
@@ -22,8 +26,10 @@ import UserAvatar from "./UserAvatar";
 import ForwardModal from "./ForwardModal";
 import PollMessage from "./PollMessage";
 import CreatePollModal from "./CreatePollModal";
+import ChatHeader from "./ChatHeader";
+import Icon from "./Icon";
 
-export default function Chat({ familyId, members = [], onOpenProfile }) {
+export default function Chat({ familyId, members = [], onOpenProfile, onBack }) {
   const { user, profile } = useAuth();
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
@@ -38,10 +44,17 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
   const [search, setSearch] = useState("");
   const [searchIdx, setSearchIdx] = useState(0);
   const [pinned, setPinned] = useState(null);
+  const [chatBg, setChatBg] = useState(() => getChatBackground());
   const endRef = useRef(null);
   const inputRef = useRef(null);
   const longPressTimer = useRef(null);
   const scrollToIdRef = useRef(null);
+
+  useEffect(() => {
+    return subscribeToBgChange(() => {
+      setChatBg(getChatBackground());
+    });
+  }, []);
 
   useEffect(() => {
     if (!familyId) return;
@@ -194,23 +207,6 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
       name: profile.displayName,
       createdAt: Date.now(),
     });
-
-    const famSnap = await getDoc(doc(db, "families", familyId));
-    if (famSnap.exists()) {
-      const memberUids = famSnap.data().members || [];
-      await Promise.all(
-        memberUids
-          .filter((uid) => uid !== user.uid)
-          .map((uid) =>
-            sendNotification({
-              toUid: uid,
-              type: "message",
-              title: `📊 ${profile.displayName} создал(а) опрос`,
-              body: question,
-            })
-          )
-      );
-    }
   };
 
   const toggleReaction = async (messageId, emoji) => {
@@ -279,7 +275,7 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
         avatar: profile.avatar || "🐱",
       });
       await updateDoc(doc(db, "dms", target.chatId), {
-        lastMessage: `🔄 ${message.text.slice(0, 40)}`,
+        lastMessage: `↪ ${message.text.slice(0, 40)}`,
         lastMessageAt: Date.now(),
         lastSenderUid: user.uid,
       });
@@ -340,7 +336,7 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
           return (
             <span
               key={i}
-              className="text-indigo-400 dark:text-indigo-300 font-medium cursor-pointer hover:underline"
+              className="text-indigo-300 dark:text-indigo-300 font-medium cursor-pointer hover:underline"
               onClick={(e) => {
                 e.stopPropagation();
                 if (onOpenProfile) onOpenProfile(member);
@@ -363,43 +359,26 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-slate-800 rounded-2xl shadow-sm overflow-hidden relative">
-      {/* Хедер чата */}
-      {!searchOpen && (
-        <div className="flex items-center justify-between px-3 py-2 border-b dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 backdrop-blur">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-xl flex-shrink-0">
-              👨‍👩‍👧
-            </div>
-            <div>
-              <div className="font-semibold dark:text-white leading-tight">
-                Семейный чат
-              </div>
-              <div className="text-xs text-gray-400">
-                {members.length} участников
-              </div>
-            </div>
-          </div>
-          <div className="flex gap-1">
+    <div className="flex flex-col h-[calc(100vh-140px)] bg-white dark:bg-slate-900 rounded-2xl shadow-sm overflow-hidden relative">
+      {!searchOpen ? (
+        <ChatHeader
+          avatar="users"
+          avatarIsSvg={true}
+          title={family?.name || "Семейный чат"}
+          subtitle={`${members.length} участников`}
+          onBack={onBack}
+          rightExtra={
             <button
               onClick={() => setShowCreatePoll(true)}
-              className="w-9 h-9 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center justify-center text-lg transition"
-              title="Создать опрос"
+              className="w-9 h-9 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center justify-center text-gray-500 dark:text-gray-300 transition"
+              title="Опрос"
             >
-              📊
+              <Icon name="bar-chart" size={20} />
             </button>
-            <button
-              onClick={() => setSearchOpen(true)}
-              className="w-9 h-9 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center justify-center text-lg transition"
-              title="Поиск"
-            >
-              🔍
-            </button>
-          </div>
-        </div>
-      )}
-
-      {searchOpen && (
+          }
+          onSearch={() => setSearchOpen(true)}
+        />
+      ) : (
         <SearchBar
           value={search}
           onChange={(v) => {
@@ -421,19 +400,25 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
       {pinned && !searchOpen && (
         <div
           onClick={() => jumpToMessage(pinned.id)}
-          className="mx-2 mt-2 p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg border-l-4 border-indigo-500 cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition"
+          className="mx-2 mt-2 p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg border-l-4 border-indigo-500 cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition flex items-center gap-2"
         >
-          <div className="text-xs text-indigo-600 dark:text-indigo-300 font-medium mb-0.5">
-            📌 Закреплённое
-          </div>
-          <div className="text-sm dark:text-white truncate">
-            {pinned.type === "poll" ? `📊 ${pinned.question}` : pinned.text}
+          <Icon name="pin" size={16} className="text-indigo-500 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="text-xs text-indigo-600 dark:text-indigo-300 font-medium mb-0.5">
+              Закреплённое
+            </div>
+            <div className="text-sm dark:text-white truncate">
+              {pinned.type === "poll" ? pinned.question : pinned.text}
+            </div>
           </div>
         </div>
       )}
 
       {/* Сообщения */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-1">
+      <div
+        className="flex-1 overflow-y-auto px-3 py-3 space-y-1"
+        style={{ background: chatBg || undefined }}
+      >
         {messages.length === 0 && (
           <div className="text-center text-gray-400 dark:text-gray-500 text-sm py-8">
             Пока нет сообщений
@@ -442,8 +427,6 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
         {messages.map((m) => {
           const mine = m.uid === user.uid;
           const info = avatars[m.uid] || { avatar: "🐱", name: m.name };
-          const canEdit = mine && m.type !== "poll";
-          const canDelete = isAdmin || mine;
           const highlighted = search.trim() ? highlight(m.text) : null;
           const reactions = m.reactions || {};
           const isPoll = m.type === "poll";
@@ -471,7 +454,7 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
                 }`}
               >
                 {!mine && (
-                  <div className="text-xs font-medium text-gray-400 mb-0.5 ml-2">
+                  <div className="text-xs font-medium text-indigo-400 mb-0.5 ml-2">
                     {info.name}
                   </div>
                 )}
@@ -482,12 +465,18 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
                   onTouchMove={handleTouchEnd}
                   className={`rounded-2xl px-3 py-2 cursor-pointer select-none relative ${
                     mine
-                      ? "bg-primary text-white"
-                      : "bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white"
+                      ? "bg-primary text-white rounded-br-md"
+                      : "bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white rounded-bl-md"
                   }`}
                 >
                   {m.pinned && (
-                    <div className="absolute -top-1 -left-1 text-xs">📌</div>
+                    <div className="absolute -top-1 -left-1">
+                      <Icon
+                        name="pin"
+                        size={14}
+                        className={mine ? "text-white" : "text-indigo-500"}
+                      />
+                    </div>
                   )}
 
                   {m.forwardedFrom && (
@@ -496,7 +485,8 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
                         mine ? "text-white/70" : "text-gray-500"
                       }`}
                     >
-                      🔄 Переслано от <b>{m.forwardedFrom}</b>
+                      <Icon name="forward" size={10} />
+                      <span>Переслано от <b>{m.forwardedFrom}</b></span>
                     </div>
                   )}
 
@@ -513,13 +503,14 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
                       } rounded-r px-2 py-1`}
                     >
                       <div
-                        className={`text-[10px] font-medium ${
+                        className={`text-[10px] font-medium flex items-center gap-1 ${
                           mine
                             ? "text-white/90"
                             : "text-indigo-600 dark:text-indigo-400"
                         }`}
                       >
-                        {m.replyTo.name}
+                        <Icon name="reply" size={10} />
+                        <span>{m.replyTo.name}</span>
                       </div>
                       <div
                         className={`text-xs truncate ${
@@ -552,7 +543,13 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
                   >
                     {m.edited && <span>изменено</span>}
                     <span>{formatMessageDate(m.createdAt)}</span>
-                    {mine && <span className="text-white/80">✓✓</span>}
+                    {mine && (
+                      <Icon
+                        name="check-check"
+                        size={12}
+                        className="text-white/90"
+                      />
+                    )}
                   </div>
                 </div>
 
@@ -573,7 +570,11 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
       {/* Плашка ответа */}
       {replyTo && (
         <div className="border-t dark:border-slate-700 p-2 bg-indigo-50 dark:bg-indigo-900/20 flex items-start gap-2">
-          <div className="text-xl">💬</div>
+          <Icon
+            name="reply"
+            size={18}
+            className="text-indigo-500 dark:text-indigo-400 mt-0.5 flex-shrink-0"
+          />
           <div className="flex-1 min-w-0">
             <div className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">
               Ответ на: {replyTo.name}
@@ -584,28 +585,60 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
           </div>
           <button
             onClick={() => setReplyTo(null)}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-white text-xl"
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-white"
           >
-            ✕
+            <Icon name="x" size={18} />
           </button>
         </div>
       )}
 
-      {/* Ввод */}
+      {/* Панель ввода */}
       <form
         onSubmit={send}
-        className="border-t dark:border-slate-700 p-3 flex gap-2 bg-white dark:bg-slate-800"
+        className="border-t dark:border-slate-700 px-2 py-2 flex items-end gap-1 bg-white dark:bg-slate-900"
       >
-        <input
-          ref={inputRef}
-          className="flex-1 border dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition"
-          placeholder="Сообщение... (@ник для упоминания)"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
-        <button className="w-10 h-10 rounded-full bg-primary hover:bg-indigo-600 text-white flex items-center justify-center text-lg transition shadow-md">
-          ➤
+        <button
+          type="button"
+          className="w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center justify-center text-gray-500 dark:text-gray-400 transition flex-shrink-0"
+          title="Прикрепить"
+        >
+          <Icon name="paperclip" size={22} />
         </button>
+
+        <div className="flex-1 flex items-end bg-gray-100 dark:bg-slate-800 rounded-3xl px-3 py-1.5">
+          <input
+            ref={inputRef}
+            className="flex-1 bg-transparent dark:text-white text-sm focus:outline-none py-1.5"
+            placeholder="Сообщение..."
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
+          <button
+            type="button"
+            className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition flex-shrink-0"
+            title="Смайл"
+          >
+            <Icon name="smile" size={20} />
+          </button>
+        </div>
+
+        {text.trim() ? (
+          <button
+            type="submit"
+            className="w-10 h-10 rounded-full bg-primary hover:bg-indigo-600 text-white flex items-center justify-center transition flex-shrink-0"
+            title="Отправить"
+          >
+            <Icon name="send" size={20} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center justify-center text-gray-500 dark:text-gray-400 transition flex-shrink-0"
+            title="Голосовое"
+          >
+            <Icon name="mic" size={22} />
+          </button>
+        )}
       </form>
 
       <MessageContextMenu
@@ -649,8 +682,9 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
       {editing && (
         <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4 animate-fade-in-overlay">
           <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 w-full max-w-md shadow-2xl animate-slide-up">
-            <h3 className="font-bold text-lg dark:text-white mb-3">
-              ✏️ Редактировать
+            <h3 className="font-bold text-lg dark:text-white mb-3 flex items-center gap-2">
+              <Icon name="pencil" size={18} />
+              Редактировать
             </h3>
             <textarea
               value={editing.text}

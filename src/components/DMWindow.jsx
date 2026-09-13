@@ -18,6 +18,10 @@ import { db } from "../firebase";
 import { useAuth } from "../context/AuthContext";
 import { sendNotification } from "../context/NotificationsContext";
 import { formatMessageDate, getOnlineStatus } from "../utils/formatDate";
+import {
+  getChatBackground,
+  subscribeToBgChange,
+} from "../utils/chatBackgrounds";
 import MessageContextMenu from "./MessageContextMenu";
 import MessageReactions from "./MessageReactions";
 import SearchBar from "./SearchBar";
@@ -25,6 +29,8 @@ import UserAvatar from "./UserAvatar";
 import ForwardModal from "./ForwardModal";
 import PollMessage from "./PollMessage";
 import CreatePollModal from "./CreatePollModal";
+import ChatHeader from "./ChatHeader";
+import Icon from "./Icon";
 
 export default function DMWindow({
   chatId,
@@ -47,10 +53,17 @@ export default function DMWindow({
   const [search, setSearch] = useState("");
   const [searchIdx, setSearchIdx] = useState(0);
   const [request, setRequest] = useState(pendingRequest || null);
+  const [chatBg, setChatBg] = useState(() => getChatBackground());
   const endRef = useRef(null);
   const inputRef = useRef(null);
   const longPressTimer = useRef(null);
   const scrollToIdRef = useRef(null);
+
+  useEffect(() => {
+    return subscribeToBgChange(() => {
+      setChatBg(getChatBackground());
+    });
+  }, []);
 
   useEffect(() => {
     if (!other?.uid) return;
@@ -197,7 +210,7 @@ export default function DMWindow({
     await setDoc(
       doc(db, "dms", chatId),
       {
-        lastMessage: `📊 ${question}`,
+        lastMessage: question,
         lastMessageAt: Date.now(),
         lastSenderUid: user.uid,
       },
@@ -208,7 +221,7 @@ export default function DMWindow({
       await sendNotification({
         toUid: other.uid,
         type: "dm",
-        title: `📊 ${profile.displayName} создал(а) опрос`,
+        title: `${profile.displayName} создал(а) опрос`,
         body: question,
       });
     }
@@ -283,7 +296,7 @@ export default function DMWindow({
     } else if (target.type === "dm") {
       await addDoc(collection(db, "dms", target.chatId, "messages"), payload);
       await updateDoc(doc(db, "dms", target.chatId), {
-        lastMessage: `🔄 ${message.text.slice(0, 40)}`,
+        lastMessage: `↪ ${message.text.slice(0, 40)}`,
         lastMessageAt: Date.now(),
         lastSenderUid: user.uid,
       });
@@ -341,58 +354,33 @@ export default function DMWindow({
   };
 
   const onlineStatus = getOnlineStatus(otherProfile);
+  const subtitle = onlineStatus.online
+    ? "в сети"
+    : onlineStatus.text || `@${otherProfile?.nick || "..."}`;
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm flex flex-col h-full overflow-hidden relative">
-      {/* Хедер */}
-      <div className="flex items-center gap-3 px-3 py-2 border-b dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 backdrop-blur">
-        <button
-          onClick={onBack}
-          className="text-gray-400 hover:text-gray-600 dark:hover:text-white text-xl transition"
-        >
-          ←
-        </button>
-        <UserAvatar
+    <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm flex flex-col h-[calc(100vh-140px)] overflow-hidden relative">
+      {!searchOpen ? (
+        <ChatHeader
           user={otherProfile}
-          size="md"
-          onClick={onOpenProfile ? (u) => onOpenProfile(u) : undefined}
-          showOnline
+          title={otherProfile?.displayName || "..."}
+          subtitle={subtitle}
+          subtitleClass={onlineStatus.online ? "text-green-500" : ""}
+          onBack={onBack}
+          rightExtra={
+            canWrite ? (
+              <button
+                onClick={() => setShowCreatePoll(true)}
+                className="w-9 h-9 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center justify-center text-gray-500 dark:text-gray-300 transition"
+                title="Опрос"
+              >
+                <Icon name="bar-chart" size={20} />
+              </button>
+            ) : null
+          }
+          onSearch={() => setSearchOpen(true)}
         />
-        <div className="flex-1 min-w-0">
-          <div className="font-semibold leading-tight dark:text-white truncate">
-            {otherProfile?.displayName || "..."}
-          </div>
-          <div className="text-xs truncate">
-            {onlineStatus.online ? (
-              <span className="text-green-500">в сети</span>
-            ) : (
-              <span className="text-gray-400">
-                {onlineStatus.text || `@${otherProfile?.nick || "..."}`}
-              </span>
-            )}
-          </div>
-        </div>
-        {canWrite && (
-          <button
-            onClick={() => setShowCreatePoll(true)}
-            className="w-9 h-9 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center justify-center text-lg transition"
-            title="Опрос"
-          >
-            📊
-          </button>
-        )}
-        <button
-          onClick={() => {
-            setSearchOpen(!searchOpen);
-            setSearch("");
-          }}
-          className="w-9 h-9 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center justify-center text-lg transition"
-        >
-          🔍
-        </button>
-      </div>
-
-      {searchOpen && (
+      ) : (
         <SearchBar
           value={search}
           onChange={(v) => {
@@ -410,37 +398,48 @@ export default function DMWindow({
         />
       )}
 
+      {/* Плашка запроса — если я получатель */}
       {isPending && iAmReceiver && (
         <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border-b dark:border-slate-700">
-          <div className="text-sm dark:text-white mb-2">
-            ⏳ <b>{request.fromName}</b> (@{request.fromNick}) хочет с тобой
-            общаться
+          <div className="text-sm dark:text-white mb-2 flex items-center gap-2">
+            <Icon name="clock" size={16} className="text-yellow-500" />
+            <span>
+              <b>{request.fromName}</b> (@{request.fromNick}) хочет с тобой
+              общаться
+            </span>
           </div>
           <div className="flex gap-2">
             <button
               onClick={acceptRequest}
-              className="flex-1 bg-green-500 hover:bg-green-600 text-white rounded-lg py-2 text-sm font-medium transition"
+              className="flex-1 bg-green-500 hover:bg-green-600 text-white rounded-lg py-2 text-sm font-medium transition flex items-center justify-center gap-1.5"
             >
-              ✅ Принять
+              <Icon name="check" size={16} />
+              Принять
             </button>
             <button
               onClick={rejectRequest}
-              className="flex-1 bg-gray-200 dark:bg-slate-700 dark:text-white rounded-lg py-2 text-sm transition"
+              className="flex-1 bg-gray-200 dark:bg-slate-700 dark:text-white rounded-lg py-2 text-sm transition flex items-center justify-center gap-1.5"
             >
-              🗑️ Удалить
+              <Icon name="trash-2" size={16} />
+              Удалить
             </button>
           </div>
         </div>
       )}
 
+      {/* Плашка — если я инициатор */}
       {isPending && iAmRequester && messages.length > 0 && (
-        <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 border-b dark:border-slate-700 text-xs text-center dark:text-indigo-300">
-          ⏳ Ожидает принятия. Собеседник ещё не ответил.
+        <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 border-b dark:border-slate-700 text-xs text-center dark:text-indigo-300 flex items-center justify-center gap-2">
+          <Icon name="clock" size={14} />
+          Ожидает принятия. Собеседник ещё не ответил.
         </div>
       )}
 
       {/* Сообщения */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-1">
+      <div
+        className="flex-1 overflow-y-auto px-3 py-3 space-y-1"
+        style={{ background: chatBg || undefined }}
+      >
         {messages.length === 0 && (
           <div className="text-center text-gray-400 dark:text-gray-500 text-sm py-8">
             {isPending && iAmRequester
@@ -473,17 +472,20 @@ export default function DMWindow({
                   onTouchMove={handleTouchEnd}
                   className={`rounded-2xl px-3 py-2 cursor-pointer select-none ${
                     mine
-                      ? "bg-primary text-white"
-                      : "bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white"
+                      ? "bg-primary text-white rounded-br-md"
+                      : "bg-gray-100 dark:bg-slate-700 text-gray-900 dark:text-white rounded-bl-md"
                   }`}
                 >
                   {m.forwardedFrom && (
                     <div
-                      className={`text-[10px] mb-1 ${
+                      className={`text-[10px] mb-1 flex items-center gap-1 ${
                         mine ? "text-white/70" : "text-gray-500"
                       }`}
                     >
-                      🔄 Переслано от <b>{m.forwardedFrom}</b>
+                      <Icon name="forward" size={10} />
+                      <span>
+                        Переслано от <b>{m.forwardedFrom}</b>
+                      </span>
                     </div>
                   )}
 
@@ -500,13 +502,14 @@ export default function DMWindow({
                       } rounded-r px-2 py-1`}
                     >
                       <div
-                        className={`text-[10px] font-medium ${
+                        className={`text-[10px] font-medium flex items-center gap-1 ${
                           mine
                             ? "text-white/90"
                             : "text-indigo-600 dark:text-indigo-400"
                         }`}
                       >
-                        {m.replyTo.name}
+                        <Icon name="reply" size={10} />
+                        <span>{m.replyTo.name}</span>
                       </div>
                       <div
                         className={`text-xs truncate ${
@@ -539,7 +542,13 @@ export default function DMWindow({
                   >
                     {m.edited && <span>изменено</span>}
                     <span>{formatMessageDate(m.createdAt)}</span>
-                    {mine && <span className="text-white/80">✓✓</span>}
+                    {mine && (
+                      <Icon
+                        name="check-check"
+                        size={12}
+                        className="text-white/90"
+                      />
+                    )}
                   </div>
                 </div>
 
@@ -560,7 +569,11 @@ export default function DMWindow({
       {/* Плашка ответа */}
       {replyTo && (
         <div className="border-t dark:border-slate-700 p-2 bg-indigo-50 dark:bg-indigo-900/20 flex items-start gap-2">
-          <div className="text-xl">💬</div>
+          <Icon
+            name="reply"
+            size={18}
+            className="text-indigo-500 dark:text-indigo-400 mt-0.5 flex-shrink-0"
+          />
           <div className="flex-1 min-w-0">
             <div className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">
               Ответ на: {replyTo.name}
@@ -571,23 +584,31 @@ export default function DMWindow({
           </div>
           <button
             onClick={() => setReplyTo(null)}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-white text-xl"
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-white"
           >
-            ✕
+            <Icon name="x" size={18} />
           </button>
         </div>
       )}
 
-      {/* Ввод */}
-      <form
-        onSubmit={send}
-        className="border-t dark:border-slate-700 p-3 flex gap-2 bg-white dark:bg-slate-800"
-      >
-        {canWrite ? (
-          <>
+      {/* Панель ввода */}
+      {canWrite ? (
+        <form
+          onSubmit={send}
+          className="border-t dark:border-slate-700 px-2 py-2 flex items-end gap-1 bg-white dark:bg-slate-900"
+        >
+          <button
+            type="button"
+            className="w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center justify-center text-gray-500 dark:text-gray-400 transition flex-shrink-0"
+            title="Прикрепить"
+          >
+            <Icon name="paperclip" size={22} />
+          </button>
+
+          <div className="flex-1 flex items-end bg-gray-100 dark:bg-slate-800 rounded-3xl px-3 py-1.5">
             <input
               ref={inputRef}
-              className="flex-1 border dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition"
+              className="flex-1 bg-transparent dark:text-white text-sm focus:outline-none py-1.5"
               placeholder={
                 isPending && iAmRequester
                   ? "Первое сообщение..."
@@ -596,18 +617,40 @@ export default function DMWindow({
               value={text}
               onChange={(e) => setText(e.target.value)}
             />
-            <button className="w-10 h-10 rounded-full bg-primary hover:bg-indigo-600 text-white flex items-center justify-center text-lg transition shadow-md">
-              ➤
+            <button
+              type="button"
+              className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition flex-shrink-0"
+              title="Смайл"
+            >
+              <Icon name="smile" size={20} />
             </button>
-          </>
-        ) : (
-          <div className="flex-1 text-center text-sm text-gray-500 dark:text-gray-400 py-2">
-            {iAmReceiver
-              ? "Прими запрос, чтобы отвечать"
-              : "Ожидай принятия запроса"}
           </div>
-        )}
-      </form>
+
+          {text.trim() ? (
+            <button
+              type="submit"
+              className="w-10 h-10 rounded-full bg-primary hover:bg-indigo-600 text-white flex items-center justify-center transition flex-shrink-0"
+              title="Отправить"
+            >
+              <Icon name="send" size={20} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center justify-center text-gray-500 dark:text-gray-400 transition flex-shrink-0"
+              title="Голосовое"
+            >
+              <Icon name="mic" size={22} />
+            </button>
+          )}
+        </form>
+      ) : (
+        <div className="border-t dark:border-slate-700 p-3 text-center text-sm text-gray-500 dark:text-gray-400 bg-white dark:bg-slate-900">
+          {iAmReceiver
+            ? "Прими запрос, чтобы отвечать"
+            : "Ожидай принятия запроса"}
+        </div>
+      )}
 
       <MessageContextMenu
         position={menu ? { x: menu.x, y: menu.y } : null}
@@ -648,8 +691,9 @@ export default function DMWindow({
       {editing && (
         <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4 animate-fade-in-overlay">
           <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 w-full max-w-md shadow-2xl animate-slide-up">
-            <h3 className="font-bold text-lg dark:text-white mb-3">
-              ✏️ Редактировать
+            <h3 className="font-bold text-lg dark:text-white mb-3 flex items-center gap-2">
+              <Icon name="pencil" size={18} />
+              Редактировать
             </h3>
             <textarea
               value={editing.text}

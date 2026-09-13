@@ -1,10 +1,9 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
 const ThemeContext = createContext();
-
 export const useTheme = () => useContext(ThemeContext);
 
-export const THEMES = ["light", "dark"];
+export const THEMES = ["dark", "light"];
 
 export const BACKGROUNDS = {
   light: [
@@ -25,14 +24,14 @@ export const BACKGROUNDS = {
       css: "linear-gradient(135deg, #EDE9FE 0%, #DDD6FE 50%, #C4B5FD 100%)",
     },
     {
-      id: "peach",
-      label: "Персик",
-      css: "linear-gradient(135deg, #FEF3C7 0%, #FDE68A 50%, #FCD34D 100%)",
-    },
-    {
       id: "sky",
       label: "Небо",
       css: "linear-gradient(135deg, #DBEAFE 0%, #BFDBFE 50%, #93C5FD 100%)",
+    },
+    {
+      id: "peach",
+      label: "Персик",
+      css: "linear-gradient(135deg, #FEF3C7 0%, #FDE68A 50%, #FCD34D 100%)",
     },
   ],
   dark: [
@@ -66,20 +65,19 @@ export const BACKGROUNDS = {
 };
 
 export function ThemeProvider({ children }) {
+  // Тёмная тема по умолчанию
   const [theme, setTheme] = useState(
-    () => localStorage.getItem("shtab_theme") || "light"
+    () => localStorage.getItem("shtab_theme") || "dark"
   );
   const [bg, setBg] = useState(
     () => localStorage.getItem("shtab_bg") || "default"
   );
 
-  // применяем тему
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
     localStorage.setItem("shtab_theme", theme);
   }, [theme]);
 
-  // применяем фон
   useEffect(() => {
     localStorage.setItem("shtab_bg", bg);
     const list = BACKGROUNDS[theme];
@@ -89,7 +87,6 @@ export function ThemeProvider({ children }) {
     document.body.style.minHeight = "100vh";
   }, [bg, theme]);
 
-  // если переключили тему, сбрасываем bg на default (т.к. наборы разные)
   const changeTheme = (newTheme) => {
     setTheme(newTheme);
     setBg("default");
