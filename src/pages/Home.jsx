@@ -4,6 +4,7 @@ import { db } from "../firebase";
 import { useAuth } from "../context/AuthContext";
 import StatusWidget from "../components/StatusWidget";
 import Chats from "../components/Chats";
+import FamilyPanel from "../components/FamilyPanel";
 import NotificationsBell from "../components/NotificationsBell";
 import FamilyMap from "../components/FamilyMap";
 import UserAvatar from "../components/UserAvatar";
@@ -17,6 +18,7 @@ export default function Home() {
   const [members, setMembers] = useState([]);
   const [family, setFamily] = useState(null);
   const [tab, setTab] = useState("chats");
+  const [homeSubTab, setHomeSubTab] = useState("statuses"); // statuses | family
   const [profileOpen, setProfileOpen] = useState(null);
 
   useOnlineStatus(user);
@@ -69,39 +71,77 @@ export default function Home() {
       <main className="max-w-4xl mx-auto p-4">
         {tab === "home" && (
           <div className="space-y-4">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm animate-fade-in">
-              <h2 className="font-semibold mb-3 dark:text-white">Кто где</h2>
-              <div className="space-y-2">
-                {members.map((m) => (
-                  <div
-                    key={m.uid}
-                    className="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-slate-700"
-                  >
-                    <div className="flex items-center gap-3">
-                      <UserAvatar
-                        user={m}
-                        size="md"
-                        onClick={openProfile}
-                        showOnline
-                      />
-                      <div>
-                        <div className="font-medium leading-tight dark:text-white">
-                          {m.displayName}
-                        </div>
-                        <div className="text-gray-400 text-xs">@{m.nick}</div>
-                      </div>
-                    </div>
-                    <span className="text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap ml-2">
-                      {m.statusEmoji} {m.status}
-                    </span>
-                  </div>
-                ))}
-              </div>
+            {/* Подтабы на Главной */}
+            <div className="flex gap-2 pb-1 overflow-x-auto scrollbar-none">
+              {[
+                { id: "statuses", label: "Статусы" },
+                { id: "family", label: "Семья" },
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setHomeSubTab(t.id)}
+                  className={`px-4 py-1.5 rounded-full text-sm whitespace-nowrap transition ${
+                    homeSubTab === t.id
+                      ? "bg-primary text-white"
+                      : "bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
             </div>
 
-            <div className="animate-fade-in">
-              <StatusWidget />
-            </div>
+            {homeSubTab === "statuses" && (
+              <>
+                <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm animate-fade-in">
+                  <h2 className="font-semibold mb-3 dark:text-white">
+                    Кто где
+                  </h2>
+                  <div className="space-y-2">
+                    {members.map((m) => (
+                      <div
+                        key={m.uid}
+                        className="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-slate-700"
+                      >
+                        <div className="flex items-center gap-3">
+                          <UserAvatar
+                            user={m}
+                            size="md"
+                            onClick={openProfile}
+                            showOnline
+                          />
+                          <div>
+                            <div className="font-medium leading-tight dark:text-white">
+                              {m.displayName}
+                            </div>
+                            <div className="text-gray-400 text-xs">
+                              @{m.nick}
+                            </div>
+                          </div>
+                        </div>
+                        <span className="text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap ml-2">
+                          {m.statusEmoji} {m.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="animate-fade-in">
+                  <StatusWidget />
+                </div>
+              </>
+            )}
+
+            {homeSubTab === "family" && (
+              <div className="animate-fade-in">
+                <FamilyPanel
+                  family={family}
+                  members={members}
+                  onOpenProfile={openProfile}
+                />
+              </div>
+            )}
           </div>
         )}
 

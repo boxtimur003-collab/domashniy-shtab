@@ -10,12 +10,14 @@ import {
 import UserAvatar from "../components/UserAvatar";
 import Icon from "../components/Icon";
 import ChatBackgroundPicker from "../components/ChatBackgroundPicker";
+import EditProfileModal from "../components/EditProfileModal";
 
 export default function Settings() {
   const { profile, logout } = useAuth();
   const { theme, changeTheme } = useTheme();
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [showBgPicker, setShowBgPicker] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
   const [chatBg, setChatBg] = useState(() => getChatBackground());
 
   useEffect(() => {
@@ -25,12 +27,11 @@ export default function Settings() {
   }, []);
 
   const currentBgInfo = CHAT_BACKGROUNDS.find((b) => b.css === chatBg);
-
   const onlineStatus = getOnlineStatus(profile);
 
   return (
     <div className="space-y-3">
-      {/* Профиль */}
+      {/* Профиль + кнопка Настроить */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm">
         <div className="flex items-center gap-3">
           <UserAvatar user={profile} size="2xl" />
@@ -55,6 +56,15 @@ export default function Settings() {
             {profile.bio}
           </div>
         )}
+
+        {/* Кнопка Настроить профиль */}
+        <button
+          onClick={() => setShowEditProfile(true)}
+          className="mt-4 w-full bg-primary hover:bg-indigo-600 text-white rounded-xl py-2.5 text-sm font-medium transition flex items-center justify-center gap-2"
+        >
+          <Icon name="pencil" size={18} />
+          Настроить профиль
+        </button>
       </div>
 
       {/* Тема */}
@@ -105,7 +115,7 @@ export default function Settings() {
         </div>
       </button>
 
-      {/* Уведомления (заготовка) */}
+      {/* Уведомления */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm">
         <div className="flex items-center gap-2 mb-2">
           <Icon name="bell" size={18} className="text-gray-500" />
@@ -151,6 +161,10 @@ export default function Settings() {
 
       {showBgPicker && (
         <ChatBackgroundPicker onClose={() => setShowBgPicker(false)} />
+      )}
+
+      {showEditProfile && (
+        <EditProfileModal onClose={() => setShowEditProfile(false)} />
       )}
     </div>
   );

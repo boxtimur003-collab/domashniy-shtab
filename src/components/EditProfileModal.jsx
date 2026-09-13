@@ -7,6 +7,7 @@ import {
   SYMBOLS,
 } from "../context/AuthContext";
 import UserAvatar from "./UserAvatar";
+import Icon from "./Icon";
 
 export default function EditProfileModal({ onClose }) {
   const { profile, updateProfile, updateAvatar, reloadProfile } = useAuth();
@@ -16,7 +17,7 @@ export default function EditProfileModal({ onClose }) {
   const [avatar, setAvatar] = useState(profile?.avatar || "🐱");
   const [color, setColor] = useState(profile?.colorTheme || "#6366f1");
   const [symbol, setSymbol] = useState(profile?.symbol || "");
-  const [tab, setTab] = useState("main"); // main | avatar | color | symbol
+  const [tab, setTab] = useState("main");
   const [busy, setBusy] = useState(false);
 
   const save = async () => {
@@ -48,16 +49,16 @@ export default function EditProfileModal({ onClose }) {
   return (
     <div className="fixed inset-0 bg-black/50 z-[80] flex items-center justify-center p-4 animate-fade-in-overlay">
       <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-md shadow-2xl animate-slide-up max-h-[90vh] flex flex-col">
-        {/* Шапка */}
         <div className="flex justify-between items-center p-4 border-b dark:border-slate-700">
-          <h3 className="font-bold text-lg dark:text-white">
-            ⚙️ Настроить профиль
+          <h3 className="font-bold text-lg dark:text-white flex items-center gap-2">
+            <Icon name="user" size={20} />
+            Настроить профиль
           </h3>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-white text-xl"
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-white"
           >
-            ✕
+            <Icon name="x" size={20} />
           </button>
         </div>
 
@@ -72,7 +73,6 @@ export default function EditProfileModal({ onClose }) {
           </div>
         </div>
 
-        {/* Контент — прокрутка */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {tab === "main" && (
             <>
@@ -169,40 +169,38 @@ export default function EditProfileModal({ onClose }) {
           )}
 
           {tab === "symbol" && (
-            <>
-              <div className="grid grid-cols-8 gap-1">
+            <div className="grid grid-cols-8 gap-1">
+              <button
+                onClick={() => setSymbol("")}
+                className={`text-2xl p-1 rounded hover:bg-indigo-100 dark:hover:bg-indigo-800 transition ${
+                  symbol === "" ? "bg-indigo-200 dark:bg-indigo-700" : ""
+                }`}
+                title="Без символа"
+              >
+                <Icon name="x" size={20} />
+              </button>
+              {SYMBOLS.map((s) => (
                 <button
-                  onClick={() => setSymbol("")}
+                  key={s}
+                  onClick={() => setSymbol(s)}
                   className={`text-2xl p-1 rounded hover:bg-indigo-100 dark:hover:bg-indigo-800 transition ${
-                    symbol === "" ? "bg-indigo-200 dark:bg-indigo-700" : ""
+                    symbol === s ? "bg-indigo-200 dark:bg-indigo-700" : ""
                   }`}
-                  title="Без символа"
                 >
-                  ❌
+                  {s}
                 </button>
-                {SYMBOLS.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setSymbol(s)}
-                    className={`text-2xl p-1 rounded hover:bg-indigo-100 dark:hover:bg-indigo-800 transition ${
-                      symbol === s ? "bg-indigo-200 dark:bg-indigo-700" : ""
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </>
+              ))}
+            </div>
           )}
         </div>
 
         {/* Вкладки */}
         <div className="flex border-t dark:border-slate-700">
           {[
-            { id: "main", label: "Имя/Био", icon: "📝" },
-            { id: "avatar", label: "Аватар", icon: "🐱" },
-            { id: "color", label: "Цвет", icon: "🎨" },
-            { id: "symbol", label: "Символ", icon: "⭐" },
+            { id: "main", label: "Имя/Био", icon: "user" },
+            { id: "avatar", label: "Аватар", icon: "smile" },
+            { id: "color", label: "Цвет", icon: "palette" },
+            { id: "symbol", label: "Символ", icon: "star" },
           ].map((t) => (
             <button
               key={t.id}
@@ -213,20 +211,21 @@ export default function EditProfileModal({ onClose }) {
                   : "text-gray-400 dark:text-gray-500"
               }`}
             >
-              <span className="text-base">{t.icon}</span>
+              <Icon name={t.icon} size={18} />
               <span>{t.label}</span>
             </button>
           ))}
         </div>
 
-        {/* Кнопка */}
+        {/* Кнопки */}
         <div className="p-3 border-t dark:border-slate-700 flex gap-2">
           <button
             onClick={save}
             disabled={busy}
-            className="flex-1 bg-primary hover:bg-indigo-600 text-white rounded-lg py-2.5 font-medium transition disabled:opacity-50"
+            className="flex-1 bg-primary hover:bg-indigo-600 text-white rounded-lg py-2.5 font-medium transition disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {busy ? "Сохраняем..." : "💾 Сохранить"}
+            <Icon name="check" size={18} />
+            {busy ? "..." : "Сохранить"}
           </button>
           <button
             onClick={onClose}

@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import Icon from "./Icon";
 
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
 
@@ -41,7 +42,7 @@ export default function MessageContextMenu({
         className="fixed z-[61] bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border dark:border-slate-600 py-1 w-56 animate-fade-in overflow-hidden"
         style={{ left, top }}
       >
-        {/* Реакции */}
+        {/* Реакции — эмодзи, оставляем (это контент) */}
         {onReact && (
           <div className="flex gap-1 px-2 py-2 border-b dark:border-slate-700">
             {QUICK_REACTIONS.map((emoji) => (
@@ -72,7 +73,8 @@ export default function MessageContextMenu({
             }}
             className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-700 text-sm dark:text-white flex items-center gap-2 transition"
           >
-            💬 Ответить
+            <Icon name="reply" size={16} />
+            Ответить
           </button>
         )}
 
@@ -85,7 +87,8 @@ export default function MessageContextMenu({
             }}
             className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-700 text-sm dark:text-white flex items-center gap-2 transition"
           >
-            🔄 Переслать
+            <Icon name="forward" size={16} />
+            Переслать
           </button>
         )}
 
@@ -98,7 +101,8 @@ export default function MessageContextMenu({
             }}
             className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-700 text-sm dark:text-white flex items-center gap-2 transition"
           >
-            {isPinned ? "📌 Открепить" : "📌 Закрепить"}
+            <Icon name="pin" size={16} />
+            {isPinned ? "Открепить" : "Закрепить"}
           </button>
         )}
 
@@ -111,7 +115,8 @@ export default function MessageContextMenu({
             }}
             className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-700 text-sm dark:text-white flex items-center gap-2 transition"
           >
-            ✏️ Редактировать
+            <Icon name="pencil" size={16} />
+            Редактировать
           </button>
         )}
 
@@ -124,7 +129,8 @@ export default function MessageContextMenu({
             }}
             className="w-full text-left px-4 py-2 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm text-red-500 flex items-center gap-2 transition border-t dark:border-slate-700"
           >
-            🗑️ Удалить
+            <Icon name="trash-2" size={16} />
+            Удалить
           </button>
         )}
 
