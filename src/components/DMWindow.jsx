@@ -17,7 +17,7 @@ import {
 import { db } from "../firebase";
 import { useAuth } from "../context/AuthContext";
 import { sendNotification } from "../context/NotificationsContext";
-import { formatMessageDate } from "../utils/formatDate";
+import { formatMessageDate, getOnlineStatus } from "../utils/formatDate";
 import MessageContextMenu from "./MessageContextMenu";
 import MessageReactions from "./MessageReactions";
 import SearchBar from "./SearchBar";
@@ -150,7 +150,11 @@ export default function DMWindow({
 
     await setDoc(
       doc(db, "dms", chatId),
-      { lastMessage: msg, lastMessageAt: Date.now() },
+      {
+        lastMessage: msg,
+        lastMessageAt: Date.now(),
+        lastSenderUid: user.uid,
+      },
       { merge: true }
     );
 
@@ -174,7 +178,6 @@ export default function DMWindow({
     }
   };
 
-  // Создание опроса в DM
   const createPoll = async (question, options) => {
     if (!canWrite) return;
     const votes = {};
@@ -193,7 +196,11 @@ export default function DMWindow({
 
     await setDoc(
       doc(db, "dms", chatId),
-      { lastMessage: `📊 ${question}`, lastMessageAt: Date.now() },
+      {
+        lastMessage: `📊 ${question}`,
+        lastMessageAt: Date.now(),
+        lastSenderUid: user.uid,
+      },
       { merge: true }
     );
 
@@ -278,6 +285,7 @@ export default function DMWindow({
       await updateDoc(doc(db, "dms", target.chatId), {
         lastMessage: `🔄 ${message.text.slice(0, 40)}`,
         lastMessageAt: Date.now(),
+        lastSenderUid: user.uid,
       });
     }
   };
@@ -332,9 +340,12 @@ export default function DMWindow({
     setTimeout(() => el?.classList.remove("highlight-pulse"), 1500);
   };
 
+  const onlineStatus = getOnlineStatus(otherProfile);
+
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm flex flex-col h-[70vh] overflow-hidden relative">
-      <div className="flex items-center gap-3 p-3 border-b dark:border-slate-700">
+    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm flex flex-col h-full overflow-hidden relative">
+      {/* Хедер */}
+      <div className="flex items-center gap-3 px-3 py-2 border-b dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 backdrop-blur">
         <button
           onClick={onBack}
           className="text-gray-400 hover:text-gray-600 dark:hover:text-white text-xl transition"
@@ -348,17 +359,23 @@ export default function DMWindow({
           showOnline
         />
         <div className="flex-1 min-w-0">
-          <div className="font-medium leading-tight dark:text-white truncate">
+          <div className="font-semibold leading-tight dark:text-white truncate">
             {otherProfile?.displayName || "..."}
           </div>
-          <div className="text-xs text-gray-400 truncate">
-            @{otherProfile?.nick || "..."}
+          <div className="text-xs truncate">
+            {onlineStatus.online ? (
+              <span className="text-green-500">в сети</span>
+            ) : (
+              <span className="text-gray-400">
+                {onlineStatus.text || `@${otherProfile?.nick || "..."}`}
+              </span>
+            )}
           </div>
         </div>
         {canWrite && (
           <button
             onClick={() => setShowCreatePoll(true)}
-            className="w-9 h-9 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center justify-center text-lg transition"
+            className="w-9 h-9 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center justify-center text-lg transition"
             title="Опрос"
           >
             📊
@@ -369,7 +386,7 @@ export default function DMWindow({
             setSearchOpen(!searchOpen);
             setSearch("");
           }}
-          className="w-9 h-9 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center justify-center text-lg transition"
+          className="w-9 h-9 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center justify-center text-lg transition"
         >
           🔍
         </button>
@@ -422,7 +439,8 @@ export default function DMWindow({
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-2">
+      {/* Сообщения */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-1">
         {messages.length === 0 && (
           <div className="text-center text-gray-400 dark:text-gray-500 text-sm py-8">
             {isPending && iAmRequester
@@ -521,6 +539,7 @@ export default function DMWindow({
                   >
                     {m.edited && <span>изменено</span>}
                     <span>{formatMessageDate(m.createdAt)}</span>
+                    {mine && <span className="text-white/80">✓✓</span>}
                   </div>
                 </div>
 
@@ -538,6 +557,7 @@ export default function DMWindow({
         <div ref={endRef} />
       </div>
 
+      {/* Плашка ответа */}
       {replyTo && (
         <div className="border-t dark:border-slate-700 p-2 bg-indigo-50 dark:bg-indigo-900/20 flex items-start gap-2">
           <div className="text-xl">💬</div>
@@ -558,15 +578,16 @@ export default function DMWindow({
         </div>
       )}
 
+      {/* Ввод */}
       <form
         onSubmit={send}
-        className="border-t dark:border-slate-700 p-3 flex gap-2"
+        className="border-t dark:border-slate-700 p-3 flex gap-2 bg-white dark:bg-slate-800"
       >
         {canWrite ? (
           <>
             <input
               ref={inputRef}
-              className="flex-1 border dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition"
+              className="flex-1 border dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition"
               placeholder={
                 isPending && iAmRequester
                   ? "Первое сообщение..."
@@ -575,8 +596,8 @@ export default function DMWindow({
               value={text}
               onChange={(e) => setText(e.target.value)}
             />
-            <button className="bg-primary hover:bg-indigo-600 text-white rounded-lg px-4 text-sm transition">
-              Отправить
+            <button className="w-10 h-10 rounded-full bg-primary hover:bg-indigo-600 text-white flex items-center justify-center text-lg transition shadow-md">
+              ➤
             </button>
           </>
         ) : (

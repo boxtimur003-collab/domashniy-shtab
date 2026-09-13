@@ -20,6 +20,8 @@ import MessageReactions from "./MessageReactions";
 import SearchBar from "./SearchBar";
 import UserAvatar from "./UserAvatar";
 import ForwardModal from "./ForwardModal";
+import PollMessage from "./PollMessage";
+import CreatePollModal from "./CreatePollModal";
 
 export default function Chat({ familyId, members = [], onOpenProfile }) {
   const { user, profile } = useAuth();
@@ -31,6 +33,7 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
   const [editing, setEditing] = useState(null);
   const [replyTo, setReplyTo] = useState(null);
   const [forwardMsg, setForwardMsg] = useState(null);
+  const [showCreatePoll, setShowCreatePoll] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [searchIdx, setSearchIdx] = useState(0);
@@ -178,6 +181,38 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
     }
   };
 
+  const createPoll = async (question, options) => {
+    const votes = {};
+    options.forEach((opt) => (votes[opt] = []));
+
+    await addDoc(collection(db, "families", familyId, "messages"), {
+      type: "poll",
+      question,
+      options,
+      votes,
+      uid: user.uid,
+      name: profile.displayName,
+      createdAt: Date.now(),
+    });
+
+    const famSnap = await getDoc(doc(db, "families", familyId));
+    if (famSnap.exists()) {
+      const memberUids = famSnap.data().members || [];
+      await Promise.all(
+        memberUids
+          .filter((uid) => uid !== user.uid)
+          .map((uid) =>
+            sendNotification({
+              toUid: uid,
+              type: "message",
+              title: `📊 ${profile.displayName} создал(а) опрос`,
+              body: question,
+            })
+          )
+      );
+    }
+  };
+
   const toggleReaction = async (messageId, emoji) => {
     const msgRef = doc(db, "families", familyId, "messages", messageId);
     const msg = messages.find((m) => m.id === messageId);
@@ -246,6 +281,7 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
       await updateDoc(doc(db, "dms", target.chatId), {
         lastMessage: `🔄 ${message.text.slice(0, 40)}`,
         lastMessageAt: Date.now(),
+        lastSenderUid: user.uid,
       });
     }
   };
@@ -327,19 +363,39 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
   };
 
   return (
-    <div className="flex flex-col h-[70vh] bg-white dark:bg-slate-800 rounded-2xl shadow-sm overflow-hidden relative">
+    <div className="flex flex-col h-full bg-white dark:bg-slate-800 rounded-2xl shadow-sm overflow-hidden relative">
+      {/* Хедер чата */}
       {!searchOpen && (
-        <div className="flex items-center justify-between p-2 border-b dark:border-slate-700">
-          <div className="text-sm font-medium dark:text-white px-2">
-            👨‍👩‍👧 Семейный чат
+        <div className="flex items-center justify-between px-3 py-2 border-b dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 backdrop-blur">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-xl flex-shrink-0">
+              👨‍👩‍👧
+            </div>
+            <div>
+              <div className="font-semibold dark:text-white leading-tight">
+                Семейный чат
+              </div>
+              <div className="text-xs text-gray-400">
+                {members.length} участников
+              </div>
+            </div>
           </div>
-          <button
-            onClick={() => setSearchOpen(true)}
-            className="w-9 h-9 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center justify-center text-lg transition"
-            title="Поиск"
-          >
-            🔍
-          </button>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setShowCreatePoll(true)}
+              className="w-9 h-9 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center justify-center text-lg transition"
+              title="Создать опрос"
+            >
+              📊
+            </button>
+            <button
+              onClick={() => setSearchOpen(true)}
+              className="w-9 h-9 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center justify-center text-lg transition"
+              title="Поиск"
+            >
+              🔍
+            </button>
+          </div>
         </div>
       )}
 
@@ -361,6 +417,7 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
         />
       )}
 
+      {/* Закреплённое */}
       {pinned && !searchOpen && (
         <div
           onClick={() => jumpToMessage(pinned.id)}
@@ -369,11 +426,14 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
           <div className="text-xs text-indigo-600 dark:text-indigo-300 font-medium mb-0.5">
             📌 Закреплённое
           </div>
-          <div className="text-sm dark:text-white truncate">{pinned.text}</div>
+          <div className="text-sm dark:text-white truncate">
+            {pinned.type === "poll" ? `📊 ${pinned.question}` : pinned.text}
+          </div>
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-2">
+      {/* Сообщения */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-1">
         {messages.length === 0 && (
           <div className="text-center text-gray-400 dark:text-gray-500 text-sm py-8">
             Пока нет сообщений
@@ -382,10 +442,11 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
         {messages.map((m) => {
           const mine = m.uid === user.uid;
           const info = avatars[m.uid] || { avatar: "🐱", name: m.name };
-          const canEdit = mine;
+          const canEdit = mine && m.type !== "poll";
           const canDelete = isAdmin || mine;
           const highlighted = search.trim() ? highlight(m.text) : null;
           const reactions = m.reactions || {};
+          const isPoll = m.type === "poll";
 
           return (
             <div
@@ -472,9 +533,18 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
                     </div>
                   )}
 
-                  <div className="text-sm whitespace-pre-wrap break-words">
-                    {highlighted || renderText(m.text)}
-                  </div>
+                  {isPoll ? (
+                    <PollMessage
+                      poll={m}
+                      chatPath={{ collection: "families", id: familyId }}
+                      mine={mine}
+                    />
+                  ) : (
+                    <div className="text-sm whitespace-pre-wrap break-words">
+                      {highlighted || renderText(m.text)}
+                    </div>
+                  )}
+
                   <div
                     className={`text-[10px] mt-1 flex items-center gap-1.5 ${
                       mine ? "text-white/70 justify-end" : "text-gray-400"
@@ -482,14 +552,17 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
                   >
                     {m.edited && <span>изменено</span>}
                     <span>{formatMessageDate(m.createdAt)}</span>
+                    {mine && <span className="text-white/80">✓✓</span>}
                   </div>
                 </div>
 
-                <MessageReactions
-                  reactions={reactions}
-                  myUid={user.uid}
-                  onToggle={(emoji) => toggleReaction(m.id, emoji)}
-                />
+                {!isPoll && (
+                  <MessageReactions
+                    reactions={reactions}
+                    myUid={user.uid}
+                    onToggle={(emoji) => toggleReaction(m.id, emoji)}
+                  />
+                )}
               </div>
             </div>
           );
@@ -497,6 +570,7 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
         <div ref={endRef} />
       </div>
 
+      {/* Плашка ответа */}
       {replyTo && (
         <div className="border-t dark:border-slate-700 p-2 bg-indigo-50 dark:bg-indigo-900/20 flex items-start gap-2">
           <div className="text-xl">💬</div>
@@ -517,26 +591,27 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
         </div>
       )}
 
+      {/* Ввод */}
       <form
         onSubmit={send}
-        className="border-t dark:border-slate-700 p-3 flex gap-2"
+        className="border-t dark:border-slate-700 p-3 flex gap-2 bg-white dark:bg-slate-800"
       >
         <input
           ref={inputRef}
-          className="flex-1 border dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition"
+          className="flex-1 border dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition"
           placeholder="Сообщение... (@ник для упоминания)"
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
-        <button className="bg-primary hover:bg-indigo-600 text-white rounded-lg px-4 text-sm transition">
-          Отправить
+        <button className="w-10 h-10 rounded-full bg-primary hover:bg-indigo-600 text-white flex items-center justify-center text-lg transition shadow-md">
+          ➤
         </button>
       </form>
 
       <MessageContextMenu
         position={menu ? { x: menu.x, y: menu.y } : null}
         onClose={() => setMenu(null)}
-        canEdit={menu?.message.uid === user.uid}
+        canEdit={menu?.message.uid === user.uid && menu?.message.type !== "poll"}
         canDelete={isAdmin || menu?.message.uid === user.uid}
         isPinned={menu?.message.pinned}
         reactions={
@@ -555,6 +630,13 @@ export default function Chat({ familyId, members = [], onOpenProfile }) {
         }
         onDelete={() => removeMessage(menu.message)}
       />
+
+      {showCreatePoll && (
+        <CreatePollModal
+          onClose={() => setShowCreatePoll(false)}
+          onCreate={createPoll}
+        />
+      )}
 
       {forwardMsg && (
         <ForwardModal
