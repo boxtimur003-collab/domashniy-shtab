@@ -296,7 +296,7 @@ export default function DMWindow({
     } else if (target.type === "dm") {
       await addDoc(collection(db, "dms", target.chatId, "messages"), payload);
       await updateDoc(doc(db, "dms", target.chatId), {
-        lastMessage: `↪ ${message.text.slice(0, 40)}`,
+        lastMessage: message.text.slice(0, 40),
         lastMessageAt: Date.now(),
         lastSenderUid: user.uid,
       });

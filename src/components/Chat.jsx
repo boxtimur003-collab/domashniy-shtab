@@ -275,7 +275,7 @@ export default function Chat({ familyId, members = [], onOpenProfile, onBack }) 
         avatar: profile.avatar || "🐱",
       });
       await updateDoc(doc(db, "dms", target.chatId), {
-        lastMessage: `↪ ${message.text.slice(0, 40)}`,
+        lastMessage: message.text.slice(0, 40),
         lastMessageAt: Date.now(),
         lastSenderUid: user.uid,
       });

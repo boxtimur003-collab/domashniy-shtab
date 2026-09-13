@@ -2,6 +2,7 @@ import { useState } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../context/AuthContext";
+import Icon from "./Icon";
 
 export default function PollMessage({ poll, chatPath, mine }) {
   const { user } = useAuth();
@@ -21,20 +22,18 @@ export default function PollMessage({ poll, chatPath, mine }) {
     setVoting(true);
     try {
       const newVotes = { ...votes };
-      // Убираем мой старый голос
       Object.keys(newVotes).forEach((opt) => {
         newVotes[opt] = (newVotes[opt] || []).filter((u) => u !== user.uid);
       });
-      // Если я голосовал за этот же — просто снимаем (toggle)
-      if (myVote === option) {
-        // уже убрали голос
-      } else {
-        // Добавляем новый голос
+      if (myVote !== option) {
         newVotes[option] = [...(newVotes[option] || []), user.uid];
       }
-      await updateDoc(doc(db, chatPath.collection, chatPath.id, "messages", poll.id), {
-        votes: newVotes,
-      });
+      await updateDoc(
+        doc(db, chatPath.collection, chatPath.id, "messages", poll.id),
+        {
+          votes: newVotes,
+        }
+      );
     } catch (e) {
       console.error(e);
     }
@@ -44,11 +43,12 @@ export default function PollMessage({ poll, chatPath, mine }) {
   return (
     <div className="min-w-[220px]">
       <div
-        className={`text-xs font-medium mb-2 flex items-center gap-1 ${
+        className={`text-xs font-medium mb-2 flex items-center gap-1.5 ${
           mine ? "text-white/80" : "text-gray-500 dark:text-gray-400"
         }`}
       >
-        📊 Опрос
+        <Icon name="bar-chart" size={14} />
+        <span>Опрос</span>
       </div>
 
       <div className="font-semibold text-sm mb-2 break-words">
@@ -76,7 +76,6 @@ export default function PollMessage({ poll, chatPath, mine }) {
                   : "border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-600"
               }`}
             >
-              {/* Прогресс-бар */}
               <div
                 className={`absolute top-0 left-0 bottom-0 transition-all duration-300 ${
                   mine
@@ -90,7 +89,15 @@ export default function PollMessage({ poll, chatPath, mine }) {
 
               <div className="relative flex items-center justify-between px-3 py-1.5 gap-2">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                  {isMyVote && <span className="text-xs">✓</span>}
+                  {isMyVote && (
+                    <Icon
+                      name="check"
+                      size={14}
+                      className={
+                        mine ? "text-white" : "text-primary dark:text-indigo-300"
+                      }
+                    />
+                  )}
                   <span className="text-sm truncate">{opt}</span>
                 </div>
                 <div
