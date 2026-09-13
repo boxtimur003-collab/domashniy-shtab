@@ -32,7 +32,10 @@ export default function ChatBackgroundPicker({ onClose }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-4">
-          <h3 className="font-bold text-lg dark:text-white">🖼️ Обои чата</h3>
+          <h3 className="font-bold text-lg dark:text-white flex items-center gap-2">
+            <Icon name="image" size={20} />
+            Обои чата
+          </h3>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 dark:hover:text-white"
@@ -76,9 +79,10 @@ export default function ChatBackgroundPicker({ onClose }) {
         <div className="flex gap-2">
           <button
             onClick={save}
-            className="flex-1 bg-primary hover:bg-indigo-600 text-white rounded-lg py-2.5 font-medium transition"
+            className="flex-1 bg-primary hover:bg-indigo-600 text-white rounded-lg py-2.5 font-medium transition flex items-center justify-center gap-2"
           >
-            💾 Применить
+            <Icon name="check" size={18} />
+            Применить
           </button>
           <button
             onClick={onClose}

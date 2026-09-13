@@ -1,15 +1,17 @@
 import { useState } from "react";
 import { useNotifications } from "../context/NotificationsContext";
 import { usePush } from "../context/PushContext";
+import Icon from "./Icon";
 
-const ICONS = {
-  message: "💬",
-  dm: "💌",
-  join_request: "📨",
-  dm_request: "🤝",
-  member_joined: "👋",
-  status_change: "🎭",
-  default: "🔔",
+const ICON_MAP = {
+  message: "message-circle",
+  dm: "mail",
+  join_request: "user-plus",
+  dm_request: "users",
+  member_joined: "user-check",
+  status_change: "activity",
+  mention: "at-sign",
+  default: "bell",
 };
 
 function timeAgo(ts) {
@@ -36,12 +38,12 @@ export default function NotificationsBell() {
     <>
       <button
         onClick={() => setOpen(!open)}
-        className="fixed top-3 right-16 z-40 w-10 h-10 rounded-full bg-white dark:bg-slate-800 shadow-lg flex items-center justify-center text-xl hover:scale-110 transition"
+        className="relative w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center justify-center text-gray-600 dark:text-gray-300 transition"
         title="Уведомления"
       >
-        🔔
+        <Icon name="bell" size={22} />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[20px] h-5 px-1 flex items-center justify-center font-bold">
+          <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center font-bold">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
@@ -52,22 +54,23 @@ export default function NotificationsBell() {
           <div className="absolute inset-0" onClick={() => setOpen(false)} />
           <div className="relative bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col animate-slide-up mt-14">
             <div className="flex justify-between items-center p-4 border-b dark:border-slate-700">
-              <h2 className="font-bold text-lg dark:text-white">
-                🔔 Уведомления
+              <h2 className="font-bold text-lg dark:text-white flex items-center gap-2">
+                <Icon name="bell" size={20} />
+                Уведомления
               </h2>
               <button
                 onClick={() => setOpen(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-white text-xl"
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-white"
               >
-                ✕
+                <Icon name="x" size={20} />
               </button>
             </div>
 
-            {/* Баннер включения push */}
             {supported && permission !== "granted" && (
               <div className="p-3 bg-indigo-50 dark:bg-indigo-900/30 border-b dark:border-slate-700">
-                <div className="text-sm dark:text-white mb-2">
-                  🔕 Push-уведомления выключены
+                <div className="text-sm dark:text-white mb-2 flex items-center gap-2">
+                  <Icon name="bell-off" size={16} />
+                  Push-уведомления выключены
                 </div>
                 <button
                   onClick={requestPermission}
@@ -79,14 +82,15 @@ export default function NotificationsBell() {
             )}
 
             {supported && permission === "granted" && (
-              <div className="px-4 py-2 bg-green-50 dark:bg-green-900/20 border-b dark:border-slate-700 text-xs text-green-700 dark:text-green-400">
-                ✅ Push-уведомления включены
+              <div className="px-4 py-2 bg-green-50 dark:bg-green-900/20 border-b dark:border-slate-700 text-xs text-green-700 dark:text-green-400 flex items-center gap-2">
+                <Icon name="check" size={14} />
+                Push-уведомления включены
               </div>
             )}
 
             {!supported && (
               <div className="px-4 py-2 bg-yellow-50 dark:bg-yellow-900/20 border-b dark:border-slate-700 text-xs text-yellow-700 dark:text-yellow-400">
-                ⚠️ Твой браузер не поддерживает push-уведомления
+                Твой браузер не поддерживает push-уведомления
               </div>
             )}
 
@@ -125,8 +129,11 @@ export default function NotificationsBell() {
                     !n.read ? "bg-indigo-50/50 dark:bg-indigo-900/20" : ""
                   }`}
                 >
-                  <div className="text-2xl flex-shrink-0">
-                    {ICONS[n.type] || ICONS.default}
+                  <div className="w-9 h-9 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center text-primary flex-shrink-0">
+                    <Icon
+                      name={ICON_MAP[n.type] || ICON_MAP.default}
+                      size={18}
+                    />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">

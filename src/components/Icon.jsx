@@ -1,23 +1,17 @@
 // Универсальная иконка из public/icons/*.svg
-// Использует маску, чтобы можно было красить через CSS
+// Использует <img> + dark:invert для тёмной темы
+// ВАЖНО: цвет не наследуется — иконка чёрная в светлой, белая в тёмной
 
 export default function Icon({ name, size = 20, className = "" }) {
   return (
-    <span
-      className={`inline-block flex-shrink-0 ${className}`}
-      style={{
-        width: size,
-        height: size,
-        backgroundColor: "currentColor",
-        WebkitMaskImage: `url(/icons/${name}.svg)`,
-        maskImage: `url(/icons/${name}.svg)`,
-        WebkitMaskRepeat: "no-repeat",
-        maskRepeat: "no-repeat",
-        WebkitMaskPosition: "center",
-        maskPosition: "center",
-        WebkitMaskSize: "contain",
-        maskSize: "contain",
-      }}
+    <img
+      src={`/icons/${name}.svg`}
+      alt=""
+      width={size}
+      height={size}
+      className={`inline-block flex-shrink-0 dark:invert ${className}`}
+      style={{ width: size, height: size, objectFit: "contain" }}
+      draggable={false}
     />
   );
 }

@@ -5,8 +5,8 @@ import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../context/AuthContext";
 import useGeolocation from "../hooks/useGeolocation";
+import Icon from "./Icon";
 
-// Иконка маркера с эмодзи
 function makeIcon(emoji, isMe) {
   const bg = isMe ? "#22c55e" : "#6366f1";
   return L.divIcon({
@@ -19,7 +19,6 @@ function makeIcon(emoji, isMe) {
   });
 }
 
-// Компонент, который центрирует карту при первом рендере
 function Recenter({ position }) {
   const map = useMap();
   useEffect(() => {
@@ -44,7 +43,6 @@ export default function FamilyMap({ members = [] }) {
   const { user, profile, reloadProfile } = useAuth();
   const [sharing, setSharing] = useState(profile?.shareLocation || false);
 
-  // при изменении профиля извне — синхронизировать
   useEffect(() => {
     setSharing(profile?.shareLocation || false);
   }, [profile?.shareLocation]);
@@ -75,15 +73,13 @@ export default function FamilyMap({ members = [] }) {
     reloadProfile();
   };
 
-  // Центр карты — своя позиция или первый доступный член семьи
   const firstWithLoc = members.find((m) => m.location?.lat);
   const initialCenter = position
     ? [position.lat, position.lng]
     : firstWithLoc
     ? [firstWithLoc.location.lat, firstWithLoc.location.lng]
-    : [55.7558, 37.6176]; // Москва по умолчанию
+    : [55.7558, 37.6176];
 
-  // Список членов семьи, у кого есть локация + активная (за последние 30 мин)
   const membersWithLocation = members.filter((m) => m.location?.lat);
 
   return (
@@ -92,7 +88,9 @@ export default function FamilyMap({ members = [] }) {
       <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="text-3xl">📍</div>
+            <div className="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center flex-shrink-0">
+              <Icon name="map-pin" size={24} className="text-primary" />
+            </div>
             <div>
               <div className="font-semibold dark:text-white">
                 Моя геолокация
@@ -106,7 +104,7 @@ export default function FamilyMap({ members = [] }) {
           </div>
           <button
             onClick={toggleSharing}
-            className={`relative w-14 h-8 rounded-full transition ${
+            className={`relative w-14 h-8 rounded-full transition flex-shrink-0 ${
               sharing ? "bg-green-500" : "bg-gray-300 dark:bg-slate-600"
             }`}
           >
@@ -120,19 +118,21 @@ export default function FamilyMap({ members = [] }) {
 
         {error && (
           <div className="mt-3 text-xs text-red-500 bg-red-50 dark:bg-red-900/30 p-2 rounded-lg">
-            ⚠️ {error}
+            {error}
           </div>
         )}
 
         {sharing && loading && !position && (
-          <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-            ⏳ Определяем твою позицию...
+          <div className="mt-3 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+            <Icon name="clock" size={14} />
+            Определяем твою позицию...
           </div>
         )}
 
         {sharing && position && (
-          <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-            ✅ Позиция определена (±{Math.round(position.accuracy)} м)
+          <div className="mt-3 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+            <Icon name="check" size={14} className="text-green-500" />
+            Позиция определена (±{Math.round(position.accuracy)} м)
           </div>
         )}
       </div>
@@ -171,11 +171,11 @@ export default function FamilyMap({ members = [] }) {
                     <div className="text-xs mt-1">
                       {isActive ? (
                         <span className="text-green-600">
-                          🟢 {timeAgo(m.location.ts)}
+                          {timeAgo(m.location.ts)}
                         </span>
                       ) : (
                         <span className="text-gray-400">
-                          ⚪ {timeAgo(m.location.ts)}
+                          {timeAgo(m.location.ts)}
                         </span>
                       )}
                     </div>
@@ -219,12 +219,13 @@ export default function FamilyMap({ members = [] }) {
                 <div className="text-right">
                   {hasLoc ? (
                     isActive ? (
-                      <span className="text-xs text-green-600 dark:text-green-400">
-                        🟢 {timeAgo(m.location.ts)}
+                      <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-green-500" />
+                        {timeAgo(m.location.ts)}
                       </span>
                     ) : (
                       <span className="text-xs text-gray-400">
-                        ⚪ {timeAgo(m.location.ts)}
+                        {timeAgo(m.location.ts)}
                       </span>
                     )
                   ) : (

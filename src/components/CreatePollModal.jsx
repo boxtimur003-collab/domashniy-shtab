@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Icon from "./Icon";
 
 export default function CreatePollModal({ onClose, onCreate }) {
   const [question, setQuestion] = useState("");
@@ -43,14 +44,15 @@ export default function CreatePollModal({ onClose, onCreate }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-4">
-          <h3 className="font-bold text-lg dark:text-white">
-            📊 Создать опрос
+          <h3 className="font-bold text-lg dark:text-white flex items-center gap-2">
+            <Icon name="bar-chart" size={20} />
+            Создать опрос
           </h3>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-white text-xl"
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-white"
           >
-            ✕
+            <Icon name="x" size={20} />
           </button>
         </div>
 
@@ -86,7 +88,7 @@ export default function CreatePollModal({ onClose, onCreate }) {
                   onClick={() => removeOption(idx)}
                   className="w-9 h-9 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 text-red-500 flex items-center justify-center transition"
                 >
-                  ✕
+                  <Icon name="x" size={18} />
                 </button>
               )}
             </div>
@@ -96,9 +98,10 @@ export default function CreatePollModal({ onClose, onCreate }) {
         {options.length < 5 && (
           <button
             onClick={addOption}
-            className="w-full text-primary dark:text-indigo-400 text-sm py-2 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition mb-4"
+            className="w-full text-primary dark:text-indigo-400 text-sm py-2 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition mb-4 flex items-center justify-center gap-1.5"
           >
-            + Добавить вариант
+            <Icon name="plus" size={16} />
+            Добавить вариант
           </button>
         )}
 
@@ -106,9 +109,10 @@ export default function CreatePollModal({ onClose, onCreate }) {
           <button
             onClick={submit}
             disabled={!canSubmit || busy}
-            className="flex-1 bg-primary hover:bg-indigo-600 text-white rounded-lg py-2.5 font-medium disabled:opacity-50 transition"
+            className="flex-1 bg-primary hover:bg-indigo-600 text-white rounded-lg py-2.5 font-medium disabled:opacity-50 transition flex items-center justify-center gap-2"
           >
-            {busy ? "..." : "📊 Создать опрос"}
+            <Icon name="check" size={18} />
+            {busy ? "..." : "Создать опрос"}
           </button>
           <button
             onClick={onClose}

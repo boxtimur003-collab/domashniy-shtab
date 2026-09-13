@@ -57,13 +57,12 @@ export default function Home() {
 
   return (
     <div className="min-h-screen pb-20">
-      <NotificationsBell />
-
       <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b dark:border-slate-700 sticky top-0 z-30">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3 pr-20">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
           <h1 className="text-2xl font-bold dark:text-white flex-1">
             {tabTitle}
           </h1>
+          <NotificationsBell />
         </div>
       </header>
 
